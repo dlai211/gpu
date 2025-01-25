@@ -1,0 +1,32 @@
+{
+    "TrkAnaEF_dR" : {
+        "enabled" : true,
+        "TestType"  : "EFTrigger",
+        "RefType"   : "Truth",
+        "TrigTrkKey": "TracccTrackParticles",
+        "MatchingType"  : "DeltaRMatch" 
+    },
+    "TrkAnaEF_EFTM" : {
+        "enabled" : true,
+        "TestType"  : "EFTrigger",
+        "RefType"   : "Truth",
+        "TrigTrkKey": "TracccTrackParticles",
+        "MatchingType"  : "EFTruthMatch" 
+    },
+    "TrkAnaOffl" : {
+        "enabled" : true,
+        "TestType"  : "Offline",
+        "RefType"   : "Truth",
+        "MatchingType"  : "DeltaRMatch" 
+    },
+    "TrkAnaDoubleRatio" : {
+        "enabled" : true,
+        "TestType"  : "EFTrigger",
+        "RefType"   : "Offline",
+        "TrigTrkKey": "TracccTrackParticles",
+        "MatchingType"  : "DeltaRMatch",
+        "SelectOfflineObject" : "Truth",
+        "plotTrackParameters" : true 
+    }
+}
+
