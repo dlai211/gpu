@@ -119,11 +119,6 @@ if __name__=="__main__":
     #flags.IOVDb.GlobalTag = "PixelXDD-02-00"
     #from AthenaConfiguration.TestDefaults import defaultGeometryTags
     #flags.GeoModel.AtlasVersion = "ATLAS-P2-RUN4-03-00-00"
-    # flags.Concurrency.NumThreads = 1
-    # flags.Concurrency.NumConcurrentEvents = 1
-    # flags.Accelerators = []  # Force CPU-only if GPU is problematic
-    # flags.Tracking.HighMemoryMode = False  # Disable high-memory features
-    # cfg.run(maxEvents=1)
 
     flags.Detector.GeometryITkPixel = True
     flags.Detector.GeometryITkStrip = True

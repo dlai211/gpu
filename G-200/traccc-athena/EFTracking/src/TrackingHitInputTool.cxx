@@ -41,6 +41,32 @@ StatusCode TrackingHitInputTool::initialize() {
   ATH_CHECK(detStore()->retrieve(m_stripId, "SCT_ID"));
   ATH_CHECK(m_stripRDOKey.initialize());
 
+
+  // Setting up maps
+  std::ifstream map_file("/eos/project/a/atlas-eftracking/GPU/ITk_data/athenaToDetrayMap.txt");
+
+  ATH_MSG_INFO("Constructing athena to detray map");
+  std::string str; 
+  while (std::getline(map_file, str)){
+    
+    std::stringstream test(str);
+    std::vector<std::string> seglist;
+    std::string segment;
+    while(std::getline(test, segment, ',')){
+      seglist.push_back(segment);
+    }
+
+    std::string a_id = seglist[0];
+    std::string d_id = seglist[1];
+    uint64_t idD = std::stoull(d_id);
+    int idA = std::stoi(a_id);
+    m_AtlasToDetrayMap[idA] = idD;
+    //m_DetrayToAtlasMap[idD] = idA;
+
+  }
+
+  ATH_MSG_INFO("Map size: " << m_AtlasToDetrayMap.size());
+
   ATH_MSG_DEBUG("Initializing complete");
   return StatusCode::SUCCESS;
 
@@ -88,8 +114,11 @@ std::vector<clusterInfo> TrackingHitInputTool::readClusters( const EventContext&
         }
         
       }
+      
       clusterInfo thiscluster;
       thiscluster.atlas_id = humanReadableID;
+      uint64_t geometry_id = m_AtlasToDetrayMap[humanReadableID];
+      thiscluster.detray_id = geometry_id;
       thiscluster.globalPosition = theCluster->globalPosition();
       thiscluster.localPosition = theCluster->localPosition();
       thiscluster.local_key = 6;
@@ -128,6 +157,8 @@ std::vector<clusterInfo> TrackingHitInputTool::readClusters( const EventContext&
       ATH_MSG_DEBUG("Cluster center: " << element->center()[0] << "," << element->center()[1] << "," << element->center()[2]);
       clusterInfo thiscluster;
       thiscluster.atlas_id = humanReadableID;
+      uint64_t geometry_id = m_AtlasToDetrayMap[humanReadableID];
+      thiscluster.detray_id = geometry_id;
       thiscluster.globalPosition = theCluster->globalPosition();
       thiscluster.localPosition = theCluster->localPosition();
       thiscluster.local_key = 2;
@@ -150,7 +181,9 @@ std::vector<clusterInfo> TrackingHitInputTool::readClusters( const EventContext&
 std::vector<hitInfo> TrackingHitInputTool::readHits( const EventContext& eventContext){
 
   IdContext cntx = m_pixelId->wafer_context();  
-  std::vector<hitInfo> hits;
+  std::vector<hitInfo> pixel_hits;
+  std::vector<hitInfo> strip_hits;
+  std::vector<hitInfo> all_hits;
   
   ATH_MSG_INFO("Reading pixel hits");
   auto pixelRDOHandle = SG::makeHandle(m_pixelRDOKey, eventContext);
@@ -180,6 +213,8 @@ std::vector<hitInfo> TrackingHitInputTool::readHits( const EventContext& eventCo
 
       Amg::Vector2D LocalPos = sielement->rawLocalPositionOfCell(rdoId);
       thishit.atlas_id = humanReadableID;
+      uint64_t geometry_id = m_AtlasToDetrayMap[humanReadableID];
+      thishit.detray_id = geometry_id;
       thishit.globalPosition = sielement->globalPosition(LocalPos);
       InDetDD::SiCellId id = sielement->cellIdFromIdentifier(rdoId);
       
@@ -188,12 +223,12 @@ std::vector<hitInfo> TrackingHitInputTool::readHits( const EventContext& eventCo
       
       thishit.value = pixelRawData->getToT();
       thishit.timestamp = 8;
-      hits.push_back(thishit);
+      pixel_hits.push_back(thishit);
+      all_hits.push_back(thishit);
 
     }
   }
 
-  return hits;
 
   int nStrip = 0;
   auto stripRDOHandle = SG::makeHandle(m_stripRDOKey, eventContext);
@@ -220,13 +255,17 @@ std::vector<hitInfo> TrackingHitInputTool::readHits( const EventContext& eventCo
 
       hitInfo thishit;
       thishit.atlas_id = humanReadableID;
+      uint64_t geometry_id = m_AtlasToDetrayMap[humanReadableID];
+      thishit.detray_id = geometry_id;
       thishit.globalPosition = sielement->globalPosition(localPos);
       thishit.channel0 = id.phiIndex();
+      thishit.channel1 = 0;
       
       // do i need this?
       //thishit.value = pixelRawData->getToT();
       thishit.timestamp = 8;
-      hits.push_back(thishit);
+      strip_hits.push_back(thishit);
+      all_hits.push_back(thishit);
 
     }
   }
@@ -234,7 +273,8 @@ std::vector<hitInfo> TrackingHitInputTool::readHits( const EventContext& eventCo
   ATH_MSG_INFO("Read " << nPix << " pixel hits");
   ATH_MSG_INFO("Read " << nStrip << " strip hits");
 
-  //return hits;
+  // return strip_hits;
+  return pixel_hits;
   
 
 }

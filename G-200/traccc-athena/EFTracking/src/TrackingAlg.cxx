@@ -64,11 +64,11 @@ StatusCode TrackingAlg::execute(){
   //std::vector<hitInfo> detray_hits = m_hitMapTool->mapHits(hits,m_AtlasToDetrayMap);
 
   ATH_MSG_DEBUG("Passing info to traccc");
-  traccc::host_container<traccc::fitting_result<detray::cmath<float> >, traccc::track_state<detray::cmath<float> > > traccc_cluster_tracks = m_recoTool->doRecoFromClusters(clusters);
-  traccc::host_container<traccc::fitting_result<detray::cmath<float> >, traccc::track_state<detray::cmath<float> > > traccc_hit_tracks = m_recoTool->doRecoFromHits(hits,clusters);
+  traccc::host_container<traccc::fitting_result<detray::cmath<float> >, traccc::track_state<detray::cmath<float> > > traccc_cluster_tracks = m_recoTool->doRecoFromClusters(hits, clusters);
+  // traccc::host_container<traccc::fitting_result<detray::cmath<float> >, traccc::track_state<detray::cmath<float> > > traccc_hit_tracks = m_recoTool->doRecoFromHits(hits);
 
   ATH_MSG_DEBUG("Passing tracks to conversion tool");
-  ATH_CHECK(m_cnvTool->convertTracks(context, traccc_hit_tracks, m_atlasHumanIDtoIdentifier, m_DetrayToAtlasMap));
+  ATH_CHECK(m_cnvTool->convertTracks(context, traccc_cluster_tracks, m_atlasHumanIDtoIdentifier, m_DetrayToAtlasMap));
 
   return StatusCode::SUCCESS;
 

@@ -63,18 +63,17 @@ class TrackingRecoTool : public extends<AthAlgTool, ITrackingRecoTool> {
 
         virtual StatusCode initialize() override;
         virtual StatusCode finalize()   override;
-        virtual traccc::track_state_container_types::host doRecoFromClusters(std::vector<clusterInfo>& detray_clusters)  override;
-        virtual traccc::track_state_container_types::host doRecoFromHits(std::vector<hitInfo>& detray_hits,std::vector<clusterInfo>& detray_clusters)  override;
+        // virtual traccc::track_state_container_types::host doRecoFromHits(std::vector<hitInfo>& detray_hits)  override;
+        // virtual traccc::track_state_container_types::host doRecoFromClusters(std::vector<clusterInfo>& detray_clusters)  override;
+        virtual traccc::track_state_container_types::host doRecoFromClusters(std::vector<hitInfo>& detray_hits, std::vector<clusterInfo>& detray_clusters)  override;
         
 
   private:
-         Gaudi::Property<bool> m_doRecoOnCPU{this,"recoOnCPU",true,"If you also want to perform track reconstruction on CPU"};
+         Gaudi::Property<bool> m_doRecoOnCPU{this,"recoOnCPU",false,"If you also want to perform track reconstruction on CPU"};
          Gaudi::Property<bool> m_doWriteData{this,"writeData",true,"If you also want to create input for traccc standalone"};
 
          int m_n_event;
-         std::map<std::uint64_t, int> m_DetrayToAtlasMap;
-         std::map<int, std::uint64_t> m_AtlasToDetrayMap;
-
+         
          virtual traccc::track_state_container_types::host recoClustersToTracks(traccc::spacepoint_collection_types::host& spacepoints_per_event, traccc::measurement_collection_types::host& measurements_per_event);
          // Traccc alg configuration(s).
          IntegerProperty m_minTrackCandidates{this, "minTrackCandidates", 3., "min track candidates per track"};
