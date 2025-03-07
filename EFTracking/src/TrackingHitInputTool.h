@@ -56,8 +56,8 @@ class TrackingHitInputTool : public extends<AthAlgTool, ITrackingHitInputTool> {
          const PixelID* m_pixelId;
          const SCT_ID*  m_stripId;
 
-         std::map<int, std::uint64_t> m_AtlasToDetrayMap;
-         std::map<std::uint64_t, int> m_DetrayToAtlasMap;
+         std::map<Identifier, std::uint64_t> m_AtlasToDetrayMap;
+         std::map<std::uint64_t, Identifier> m_DetrayToAtlasMap;
 };
 
 #endif

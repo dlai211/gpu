@@ -11,7 +11,7 @@
 #include "Acts/Geometry/GeometryIdentifier.hpp"
 
 struct clusterInfo {
-  int atlas_id;
+  Identifier atlas_id;
   Acts::GeometryIdentifier acts_id;
   std::uint64_t detray_id;
   unsigned int local_key;
@@ -22,7 +22,7 @@ struct clusterInfo {
 };
 
 struct hitInfo {
-  int atlas_id;
+  Identifier atlas_id;
   Acts::GeometryIdentifier acts_id;
   std::uint64_t detray_id;
   Amg::Vector3D globalPosition;

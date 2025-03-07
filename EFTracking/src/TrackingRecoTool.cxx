@@ -313,10 +313,14 @@ traccc::track_state_container_types::host TrackingRecoTool::recoClustersToTracks
     return track_states_cuda;
 }
 
-traccc::track_state_container_types::host TrackingRecoTool::doRecoFromClusters(std::vector<hitInfo>& detray_hits, std::vector<clusterInfo>& detray_clusters){
 
-    ATH_MSG_INFO("Start of hits -> track reconstruction");
-    ATH_MSG_INFO("Number of hits to reco: " << detray_hits.size());
+traccc::track_state_container_types::host TrackingRecoTool::doRecoFromClusters(std::vector<hitInfo>& detray_hits, std::vector<clusterInfo>& detray_clusters) {
+
+    // ATH_MSG_INFO("Start of hits -> track reconstruction");
+    // ATH_MSG_INFO("Number of hits to reco: " << detray_hits.size());
+
+    ATH_MSG_INFO("Start of hits saving");
+    ATH_MSG_INFO("Number of hits: " << detray_hits.size());
 
     std::sort(detray_hits.begin(), detray_hits.end(), cell_order());
     
@@ -337,19 +341,46 @@ traccc::track_state_container_types::host TrackingRecoTool::doRecoFromClusters(s
     // auto context = Gaudi::Hive::currentContext();
     // std::size_t event_n = context.eventID().event_number();
     std::cout << "writing cell data" << std::endl;
-    traccc::io::write(m_n_event,"/eos/user/j/jlai/g200/ITk_data/ITk_hit_data/",traccc::data_format::csv, vecmem::get_data(cells_per_event),vecmem::get_data(m_dd),false);
+    // traccc::io::write(m_n_event,"/eos/user/j/jlai/g200/ITk_data/ITk_hit_data/",traccc::data_format::csv, vecmem::get_data(cells_per_event),vecmem::get_data(m_dd),false);
+    traccc::io::write(m_n_event,"/eos/user/j/jlai/g200/gpu/G-200/traccc-athena/run",traccc::data_format::csv, vecmem::get_data(cells_per_event),vecmem::get_data(m_dd),false);
+
+        
+    ATH_MSG_INFO("Start of cluster saving");
+    ATH_MSG_INFO("Number of clusters: " << detray_clusters.size());
+
+    // Print the first 10 clusters for debugging
+    int count = 0;
+    for (const auto& cluster : detray_clusters) {  
+        if (count <= 10) {
+            ATH_MSG_INFO("Cluster " << count + 1
+                        << " - atlas_id: " << cluster.atlas_id
+                        << ", geometry_id: " << cluster.detray_id
+                        << ", globalPosition: (" 
+                        << cluster.globalPosition.x() << ", "
+                        << cluster.globalPosition.y() << ", " 
+                        << cluster.globalPosition.z() << ")"
+                        << ", localPosition: (" 
+                        << cluster.localPosition.x() << ", "
+                        << cluster.localPosition.y() << ")"
+                        << ", localCov(0,0): " << cluster.localCov[0]
+                        << ", localCov(1,1): " << cluster.localCov[1]
+                        << ", isPixel: " << cluster.pixel);
+            count++;
+        } else {
+            break;
+        }
+    }
 
 
-
-
-    ATH_MSG_INFO("Number of clusters to reco: " << detray_clusters.size());
+    // ATH_MSG_INFO("Start of cluster -> track reconstruction");
+    // ATH_MSG_INFO("Number of clusters to reco: " << detray_clusters.size());
     std::sort(detray_clusters.begin(), detray_clusters.end(), measurement_sort_comp());
 
     traccc::spacepoint_collection_types::host spacepoints_per_event{&host_mr};
     traccc::measurement_collection_types::host measurements_per_event{&host_mr};
 
-    read_spacepoints(spacepoints_per_event, detray_clusters, false);
-    read_measurements(measurements_per_event, detray_clusters, false);
+    read_spacepoints(spacepoints_per_event, detray_clusters, true);
+    read_measurements(measurements_per_event, detray_clusters, true);
 
     make_test_data(m_n_event,detray_clusters);
 
@@ -357,15 +388,51 @@ traccc::track_state_container_types::host TrackingRecoTool::doRecoFromClusters(s
     // std::size_t event_n = context.eventID().event_number();
     traccc::io::write(m_n_event,"/eos/user/j/jlai/g200/ITk_data/ITk_hit_data/",traccc::data_format::binary, vecmem::get_data(measurements_per_event));
     traccc::io::write(m_n_event,"/eos/user/j/jlai/g200/ITk_data/ITk_hit_data/",traccc::data_format::binary, vecmem::get_data(spacepoints_per_event));
+    // traccc::io::write(m_n_event,"/eos/user/n/nribaric/tracccData/meas_test/athena_clusters/",traccc::data_format::binary, vecmem::get_data(measurements_per_event));
+    // traccc::io::write(m_n_event,"/eos/user/n/nribaric/tracccData/meas_test/athena_clusters/",traccc::data_format::binary, vecmem::get_data(spacepoints_per_event));
 
     ATH_MSG_INFO("Number of clusters to reco: " << measurements_per_event.size());
 
     return {};
-
     // traccc::track_state_container_types::host track_states = recoClustersToTracks(spacepoints_per_event, measurements_per_event);
     // return track_states;
 
 }
+
+
+
+// traccc::track_state_container_types::host TrackingRecoTool::doRecoFromClusters(std::vector<clusterInfo>& detray_clusters){
+
+    
+//     ATH_MSG_INFO("Start of cluster saving");
+//     ATH_MSG_INFO("Number of clusters: " << detray_clusters.size());
+
+//     // ATH_MSG_INFO("Start of cluster -> track reconstruction");
+//     // ATH_MSG_INFO("Number of clusters to reco: " << detray_clusters.size());
+//     std::sort(detray_clusters.begin(), detray_clusters.end(), measurement_sort_comp());
+
+//     traccc::spacepoint_collection_types::host spacepoints_per_event{&host_mr};
+//     traccc::measurement_collection_types::host measurements_per_event{&host_mr};
+
+//     read_spacepoints(spacepoints_per_event, detray_clusters, false);
+//     read_measurements(measurements_per_event, detray_clusters, false);
+
+//     make_test_data(m_n_event,detray_clusters);
+
+//     // auto context = Gaudi::Hive::currentContext();
+//     // std::size_t event_n = context.eventID().event_number();
+//     traccc::io::write(m_n_event,"/eos/user/j/jlai/g200/ITk_data/ITk_hit_data/",traccc::data_format::binary, vecmem::get_data(measurements_per_event));
+//     traccc::io::write(m_n_event,"/eos/user/j/jlai/g200/ITk_data/ITk_hit_data/",traccc::data_format::binary, vecmem::get_data(spacepoints_per_event));
+//     // traccc::io::write(m_n_event,"/eos/user/n/nribaric/tracccData/meas_test/athena_clusters/",traccc::data_format::binary, vecmem::get_data(measurements_per_event));
+//     // traccc::io::write(m_n_event,"/eos/user/n/nribaric/tracccData/meas_test/athena_clusters/",traccc::data_format::binary, vecmem::get_data(spacepoints_per_event));
+
+//     ATH_MSG_INFO("Number of clusters to reco: " << measurements_per_event.size());
+
+//     return {};
+//     // traccc::track_state_container_types::host track_states = recoClustersToTracks(spacepoints_per_event, measurements_per_event);
+//     // return track_states;
+
+// }
 
 void TrackingRecoTool::read_measurements(traccc::measurement_collection_types::host& measurements, std::vector<clusterInfo>& detray_clusters, bool do_strip){
 
@@ -447,8 +514,11 @@ void TrackingRecoTool::read_spacepoints(traccc::spacepoint_collection_types::hos
 
 // traccc::track_state_container_types::host TrackingRecoTool::doRecoFromHits(std::vector<hitInfo>& detray_hits){
 
-//     ATH_MSG_INFO("Start of hits -> track reconstruction");
-//     ATH_MSG_INFO("Number of hits to reco: " << detray_hits.size());
+//     // ATH_MSG_INFO("Start of hits -> track reconstruction");
+//     // ATH_MSG_INFO("Number of hits to reco: " << detray_hits.size());
+
+//     ATH_MSG_INFO("Start of hits saving");
+//     ATH_MSG_INFO("Number of hits: " << detray_hits.size());
 
 //     std::sort(detray_hits.begin(), detray_hits.end(), cell_order());
     
@@ -471,95 +541,98 @@ void TrackingRecoTool::read_spacepoints(traccc::spacepoint_collection_types::hos
 //     std::cout << "writing cell data" << std::endl;
 //     traccc::io::write(m_n_event,"/eos/user/j/jlai/g200/ITk_data/ITk_hit_data/",traccc::data_format::csv, vecmem::get_data(cells_per_event),vecmem::get_data(m_dd),false);
 
-//     ATH_MSG_INFO("Read cells " << cells_per_event.size());
-    
-//     // Create device copy of input collections
-//     traccc::edm::silicon_cell_collection::buffer cells_buffer(cells_per_event.size(), mr.main);
-//     async_copy(vecmem::get_data(cells_per_event), cells_buffer);
-//     ATH_MSG_DEBUG("created cuda cell buffer");
-
-//     traccc::host::clusterization_algorithm::output_type measurements_per_event;
-//     traccc::host::silicon_pixel_spacepoint_formation_algorithm::output_type spacepoints_per_event;
-
-//     // Instantiate cuda containers/collections
-//     traccc::measurement_collection_types::buffer measurements_cuda_buffer(0, *mr.host);
-//     traccc::spacepoint_collection_types::buffer spacepoints_cuda_buffer(0, *mr.host);
-//     ATH_MSG_DEBUG("created cuda meas and sp buffer");
-
-//     traccc::cuda::clusterization_algorithm ca_cuda(mr, async_copy, stream, m_cluster_cfg);
-//     traccc::cuda::measurement_sorting_algorithm ms_cuda(async_copy, stream);
-//     traccc::cuda::spacepoint_formation_algorithm<traccc::default_detector::device> sf_cuda(mr, async_copy, stream);
-//     ATH_MSG_DEBUG("created algos");
-
-//     traccc::silicon_detector_description::data host_dd_data{vecmem::get_data(m_dd)};
-//     traccc::silicon_detector_description::buffer device_dd{static_cast<traccc::silicon_detector_description::buffer::size_type>(m_dd.size()),device_mr};
-//     copy.setup(device_dd)->wait();
-//     copy(host_dd_data, device_dd)->wait();
-//     ATH_MSG_DEBUG("copied det descr");
-
-//     //--------------------------------------------
-//     //    Clusterization and spacepoint formation
-//     //--------------------------------------------
-//     // CPU
-
-//     ATH_MSG_INFO("Start of clusterization and spacepoint formation");
-
-//     traccc::host::clusterization_algorithm ca(host_mr);
-//     measurements_per_event = ca(vecmem::get_data(cells_per_event), host_dd_data);
-
-//     traccc::host::silicon_pixel_spacepoint_formation_algorithm sf(host_mr);
-//     spacepoints_per_event = sf(m_detector, vecmem::get_data(measurements_per_event));
-
-//     // GPU
-//     measurements_cuda_buffer = ca_cuda(cells_buffer, device_dd);
-//     ms_cuda(measurements_cuda_buffer);
-//     stream.synchronize();
-
-//     spacepoints_cuda_buffer = sf_cuda(det_view, measurements_cuda_buffer);
-//     stream.synchronize();
-
-//     traccc::measurement_collection_types::host measurements_per_event_cuda;
-//     traccc::spacepoint_collection_types::host spacepoints_per_event_cuda;
-//     copy(measurements_cuda_buffer, measurements_per_event_cuda)->wait();
-//     copy(spacepoints_cuda_buffer, spacepoints_per_event_cuda)->wait();
-
-
-//     // if(m_doRecoOnCPU){
-//     //     traccc::host::clusterization_algorithm ca(host_mr);
-//     //     measurements_per_event = ca(vecmem::get_data(cells_per_event), host_dd_data);
-
-//     //     traccc::host::silicon_pixel_spacepoint_formation_algorithm sf(host_mr);
-//     //     spacepoints_per_event = sf(m_detector, vecmem::get_data(measurements_per_event));
-//     // }
-
-//     ATH_MSG_INFO("measurements: " << measurements_per_event.size());
-//     ATH_MSG_INFO("spacepoints: " << spacepoints_per_event.size());
-
-//     // write_traccc_data(m_n_event,spacepoints_per_event);
-
-//     // this is because ATLAS data event numbering is not continuous and does not start with 0
-//     // this then upsets traccc :)
-//     // m_n_event++;
-
-//     // traccc::io::write(m_n_event,"/eos/user/j/jlai/g200/ITk_data/ITk_hit_data/",traccc::data_format::binary, vecmem::get_data(measurements_per_event));
-//     // traccc::io::write(m_n_event,"/eos/user/j/jlai/g200/ITk_data/ITk_hit_data/",traccc::data_format::binary, vecmem::get_data(spacepoints_per_event));
-
-//     // ATH_MSG_INFO("Adding strip clusters");
-//     // read_spacepoints(spacepoints_per_event, detray_clusters, true);
-//     // read_measurements(measurements_per_event, detray_clusters, true);
-
-//     // ATH_MSG_INFO("measurements: " << measurements_per_event.size());
-//     // ATH_MSG_INFO("spacepoints: " << spacepoints_per_event.size());
-
 //     return {};
-//     // traccc::track_state_container_types::host track_states = recoClustersToTracks(spacepoints_per_event_cuda, measurements_per_event_cuda);
-//     // return track_states;
+// }
+
+
+    // ATH_MSG_INFO("Read cells " << cells_per_event.size());
+    
+    // // Create device copy of input collections
+    // traccc::edm::silicon_cell_collection::buffer cells_buffer(cells_per_event.size(), mr.main);
+    // async_copy(vecmem::get_data(cells_per_event), cells_buffer);
+    // ATH_MSG_DEBUG("created cuda cell buffer");
+
+    // traccc::host::clusterization_algorithm::output_type measurements_per_event;
+    // traccc::host::silicon_pixel_spacepoint_formation_algorithm::output_type spacepoints_per_event;
+
+    // // Instantiate cuda containers/collections
+    // traccc::measurement_collection_types::buffer measurements_cuda_buffer(0, *mr.host);
+    // traccc::spacepoint_collection_types::buffer spacepoints_cuda_buffer(0, *mr.host);
+    // ATH_MSG_DEBUG("created cuda meas and sp buffer");
+
+    // traccc::cuda::clusterization_algorithm ca_cuda(mr, async_copy, stream, m_cluster_cfg);
+    // traccc::cuda::measurement_sorting_algorithm ms_cuda(async_copy, stream);
+    // traccc::cuda::spacepoint_formation_algorithm<traccc::default_detector::device> sf_cuda(mr, async_copy, stream);
+    // ATH_MSG_DEBUG("created algos");
+
+    // traccc::silicon_detector_description::data host_dd_data{vecmem::get_data(m_dd)};
+    // traccc::silicon_detector_description::buffer device_dd{static_cast<traccc::silicon_detector_description::buffer::size_type>(m_dd.size()),device_mr};
+    // copy.setup(device_dd)->wait();
+    // copy(host_dd_data, device_dd)->wait();
+    // ATH_MSG_DEBUG("copied det descr");
+
+
+    // //--------------------------------------------
+    // //    Clusterization and spacepoint formation
+    // //--------------------------------------------
+    // // CPU
+
+    // ATH_MSG_INFO("Start of clusterization and spacepoint formation");
+
+    // traccc::host::clusterization_algorithm ca(host_mr);
+    // measurements_per_event = ca(vecmem::get_data(cells_per_event), host_dd_data);
+
+    // traccc::host::silicon_pixel_spacepoint_formation_algorithm sf(host_mr);
+    // spacepoints_per_event = sf(m_detector, vecmem::get_data(measurements_per_event));
+
+    // // GPU
+    // measurements_cuda_buffer = ca_cuda(cells_buffer, device_dd);
+    // ms_cuda(measurements_cuda_buffer);
+    // stream.synchronize();
+
+    // spacepoints_cuda_buffer = sf_cuda(det_view, measurements_cuda_buffer);
+    // stream.synchronize();
+
+    // traccc::measurement_collection_types::host measurements_per_event_cuda;
+    // traccc::spacepoint_collection_types::host spacepoints_per_event_cuda;
+    // copy(measurements_cuda_buffer, measurements_per_event_cuda)->wait();
+    // copy(spacepoints_cuda_buffer, spacepoints_per_event_cuda)->wait();
+
+
+    // // if(m_doRecoOnCPU){
+    // //     traccc::host::clusterization_algorithm ca(host_mr);
+    // //     measurements_per_event = ca(vecmem::get_data(cells_per_event), host_dd_data);
+
+    // //     traccc::host::silicon_pixel_spacepoint_formation_algorithm sf(host_mr);
+    // //     spacepoints_per_event = sf(m_detector, vecmem::get_data(measurements_per_event));
+    // // }
+
+    // ATH_MSG_INFO("measurements: " << measurements_per_event.size());
+    // ATH_MSG_INFO("spacepoints: " << spacepoints_per_event.size());
+
+    // // write_traccc_data(m_n_event,spacepoints_per_event);
+
+    // // this is because ATLAS data event numbering is not continuous and does not start with 0
+    // // this then upsets traccc :)
+    // // m_n_event++;
+
+    // // traccc::io::write(event_n,"/eos/user/n/nribaric/tracccData/meas_test/traccc_clusters/",traccc::data_format::binary, vecmem::get_data(measurements_per_event));
+    // // traccc::io::write(event_n,"/eos/user/n/nribaric/tracccData/meas_test/traccc_clusters/",traccc::data_format::binary, vecmem::get_data(spacepoints_per_event));
+
+    // // ATH_MSG_INFO("Adding strip clusters");
+    // // read_spacepoints(spacepoints_per_event, detray_clusters, true);
+    // // read_measurements(measurements_per_event, detray_clusters, true);
+
+    // // ATH_MSG_INFO("measurements: " << measurements_per_event.size());
+    // // ATH_MSG_INFO("spacepoints: " << spacepoints_per_event.size());
+
+    // traccc::track_state_container_types::host track_states = recoClustersToTracks(spacepoints_per_event_cuda, measurements_per_event_cuda);
+    // return track_states;
   
 // }
 
 
 void TrackingRecoTool::read_cells(traccc::edm::silicon_cell_collection::host& cells, std::vector<hitInfo>& detray_hits) {
-    ATH_MSG_INFO("Running read_cells");
 
     cells.resize(detray_hits.size()+1);
 
@@ -736,7 +809,6 @@ void TrackingRecoTool::write_traccc_data(int m_n_event,traccc::spacepoint_collec
 
 void TrackingRecoTool::make_test_data(int m_n_event,std::vector<clusterInfo>& detray_clusters){
 
-    ATH_MSG_INFO("Doing make_test_data function");
     
     std::string padded = std::format("{:09}",m_n_event);
 
@@ -770,3 +842,6 @@ void TrackingRecoTool::make_test_data(int m_n_event,std::vector<clusterInfo>& de
     mapfile.close();
 
 }
+
+
+

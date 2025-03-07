@@ -71,7 +71,7 @@ const Acts::Surface& TrackConversionTool::atlasIdToActsSurface(Identifier& atlas
 }
 
 
-const Acts::BoundTrackParameters TrackConversionTool::convertToActsParameters(const traccc::track_state<detray::cmath<float> >& state, std::map<int, Identifier>& atlasHumanIDtoIdentifier,std::map<std::uint64_t, int>& detrayToAtlasMap){
+const Acts::BoundTrackParameters TrackConversionTool::convertToActsParameters(const traccc::track_state<detray::cmath<float> >& state, std::map<Identifier, Identifier>& atlasHumanIDtoIdentifier,std::map<std::uint64_t, Identifier>& detrayToAtlasMap){
 
   using namespace Acts::UnitLiterals;
   std::shared_ptr<const Acts::Surface> actsSurface;
@@ -82,7 +82,7 @@ const Acts::BoundTrackParameters TrackConversionTool::convertToActsParameters(co
   const std::uint_least64_t detray_id = measurement.surface_link.value();
 
   if(detrayToAtlasMap.find(detray_id) != detrayToAtlasMap.end()){
-    int atlas_humanID = detrayToAtlasMap[detray_id];
+    Identifier atlas_humanID = detrayToAtlasMap[detray_id];
     Identifier atlas_id = atlasHumanIDtoIdentifier[atlas_humanID];
     // get the associated surface
     try {
@@ -175,7 +175,7 @@ const Acts::Surface& TrackConversionTool::atlasIdToActsSurface(const Identifier 
 }
 
 
-StatusCode TrackConversionTool::convertTracks(const EventContext& eventContext, traccc::track_state_container_types::host& resolved_tracks, std::map<int, Identifier>& atlasHumanIDtoIdentifier, std::map<std::uint64_t, int>& detrayToAtlasMap){
+StatusCode TrackConversionTool::convertTracks(const EventContext& eventContext, traccc::track_state_container_types::host& resolved_tracks, std::map<Identifier, Identifier>& atlasHumanIDtoIdentifier, std::map<std::uint64_t, Identifier>& detrayToAtlasMap){
 
   ActsTrk::MutableTrackContainer trackContainer;
   auto& trackStateContainer = trackContainer.trackStateContainer();

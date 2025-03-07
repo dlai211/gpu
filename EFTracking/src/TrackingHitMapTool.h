@@ -53,9 +53,9 @@ class TrackingHitMapTool : public extends<AthAlgTool, ITrackingHitMapTool> {
 
         virtual StatusCode initialize() override;
         virtual StatusCode finalize()   override;
-        virtual std::vector<hitInfo> mapHits(std::vector<hitInfo>& hits, std::map<int, std::uint64_t>& AtlasToDetrayMap)  override;
-        virtual std::vector<clusterInfo> mapClusters(std::vector<clusterInfo>& clusters, std::map<int, std::uint64_t>& AtlasToDetrayMap)  override;
-        std::tuple<std::map<std::uint64_t, int>,std::map<int, std::uint64_t>,traccc::silicon_detector_description::host,std::map<int, Identifier>> createMaps();
+        virtual std::vector<hitInfo> mapHits(std::vector<hitInfo>& hits, std::map<Identifier, std::uint64_t>& AtlasToDetrayMap)  override;
+        virtual std::vector<clusterInfo> mapClusters(std::vector<clusterInfo>& clusters, std::map<Identifier, std::uint64_t>& AtlasToDetrayMap)  override;
+        std::tuple<std::map<std::uint64_t, Identifier>,std::map<Identifier, std::uint64_t>,traccc::silicon_detector_description::host,std::map<Identifier, Identifier>> createMaps();
          
   private:
 
@@ -66,13 +66,13 @@ class TrackingHitMapTool : public extends<AthAlgTool, ITrackingHitMapTool> {
          host_detector_type m_detector{host_mr};
 
          void createAthenaMap();
-         std::map<int, Amg::Vector3D >  m_atlasModuleMap;
-         std::map<int, moduleInfo> m_atlasModuleInfo;
-         std::map<int, Identifier> m_atlasHumanIDToIdentifier;
+         std::map<Identifier, Amg::Vector3D >  m_atlasModuleMap;
+         std::map<Identifier, moduleInfo> m_atlasModuleInfo;
+         std::map<Identifier, Identifier> m_atlasHumanIDToIdentifier;
 
          void createAthenaToDetrayMap();
-         std::map<std::uint64_t, int> m_DetrayToAtlasMap;
-         std::map<int, std::uint64_t> m_AtlasToDetrayMap;
+         std::map<std::uint64_t, Identifier> m_DetrayToAtlasMap;
+         std::map<Identifier, std::uint64_t> m_AtlasToDetrayMap;
          std::map<std::uint64_t, Acts::GeometryIdentifier> m_DetrayToActsMap;
 
          std::map<std::uint64_t, Amg::Vector3D >  m_detrayModuleMap;

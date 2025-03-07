@@ -43,7 +43,7 @@ StatusCode TrackingHitInputTool::initialize() {
 
 
   // Setting up maps
-  std::ifstream map_file("/eos/project/a/atlas-eftracking/GPU/ITk_data/athenaToDetrayMap.txt");
+  std::ifstream map_file("/eos/project/a/atlas-eftracking/GPU/ITk_data/athenaIdentifierToDetrayMap.txt");
 
   ATH_MSG_INFO("Constructing athena to detray map");
   std::string str; 
@@ -59,7 +59,9 @@ StatusCode TrackingHitInputTool::initialize() {
     std::string a_id = seglist[0];
     std::string d_id = seglist[1];
     uint64_t idD = std::stoull(d_id);
-    int idA = std::stoi(a_id);
+    // int idA = std::stoi(a_id);
+    Identifier idA;
+    idA.set(a_id);
     m_AtlasToDetrayMap[idA] = idD;
     //m_DetrayToAtlasMap[idD] = idA;
 
@@ -74,8 +76,9 @@ StatusCode TrackingHitInputTool::initialize() {
 
 std::vector<clusterInfo> TrackingHitInputTool::readClusters( const EventContext& eventContext){
 
-  
-  std::vector<clusterInfo> clusters;
+  std::vector<clusterInfo> strip_clusters;
+
+  std::vector<clusterInfo> pixel_clusters;
   ATH_MSG_INFO("Reading pixel clusters");
   SG::ReadHandle<InDet::PixelClusterContainer> inputPixelClusterContainer(m_inputPixelClusterContainerKey, eventContext);
   int nPix = 0;
@@ -87,37 +90,15 @@ std::vector<clusterInfo> TrackingHitInputTool::readClusters( const EventContext&
       nPix++;
       const InDetDD::SiDetectorElement* element=theCluster->detectorElement();
       const Identifier Pixel_ModuleID = element->identify();
-      
-      int humanReadableID = 1000000*1 /*1 = Pixel*/
-      + 100000*m_pixelId->layer_disk(Pixel_ModuleID)
-      + 1000*(10+m_pixelId->eta_module(Pixel_ModuleID))
-      + m_pixelId->phi_module(Pixel_ModuleID);
-      if ( m_pixelId->barrel_ec(Pixel_ModuleID) != 0 ) {
-          humanReadableID = m_pixelId->barrel_ec(Pixel_ModuleID)*(humanReadableID + 10000000);
-      }
-
-      ATH_MSG_DEBUG("Cluster center global: " << element->center()[0] << "," << element->center()[1] << "," << element->center()[2]);
+      // if (nPix <= 10) {
+      //   ATH_MSG_INFO("Pixel Cluster " << nPix << " center global: " << element->center()[0] << "," << element->center()[1] << "," << element->center()[2]);
+      // }
 
       const std::vector<Identifier>& rdoList = theCluster->rdoList();
-      if(humanReadableID == -22020000){
-        
-        ATH_MSG_DEBUG("Module ID: " << humanReadableID);
-        ATH_MSG_DEBUG("Cluster center: " << theCluster->globalPosition()[0] << "," << theCluster->globalPosition()[1] << "," << theCluster->globalPosition()[2]);
-        ATH_MSG_DEBUG("Local coordinates: " << theCluster->localPosition()[0] << "," << theCluster->localPosition()[1]);
-        ATH_MSG_DEBUG("Hits associated to this cluster: ");
-	      std::vector<Identifier>::const_iterator nextRDO; 
-        int p = 0;
-        for(nextRDO=rdoList.begin(); nextRDO !=rdoList.end(); ++nextRDO){ 
-          Identifier rdoId = (*nextRDO); 
-                ATH_MSG_DEBUG("hit n. " << p << " : " << m_pixelId->phi_index(rdoId) << " / " << m_pixelId->eta_index(rdoId));
-                p++;
-        }
-        
-      }
       
       clusterInfo thiscluster;
-      thiscluster.atlas_id = humanReadableID;
-      uint64_t geometry_id = m_AtlasToDetrayMap[humanReadableID];
+      thiscluster.atlas_id = Pixel_ModuleID;
+      uint64_t geometry_id = m_AtlasToDetrayMap[Pixel_ModuleID];
       thiscluster.detray_id = geometry_id;
       thiscluster.globalPosition = theCluster->globalPosition();
       thiscluster.localPosition = theCluster->localPosition();
@@ -128,14 +109,28 @@ std::vector<clusterInfo> TrackingHitInputTool::readClusters( const EventContext&
       cov.push_back(localCov(1,1));
       thiscluster.localCov = cov;
       thiscluster.pixel = true;
-      clusters.push_back(thiscluster);
+
+      // Print only for the first 10 clusters
+      if (nPix <= 10) { 
+        ATH_MSG_INFO("Pixel Cluster " << nPix << 
+                     " - geometry_id: " << geometry_id << 
+                     ", globalPosition: (" << thiscluster.globalPosition.x() << ", " << thiscluster.globalPosition.y() << ", " << thiscluster.globalPosition.z() << ")" << 
+                     ", localPosition: (" << thiscluster.localPosition.x() << ", " << thiscluster.localPosition.y() << ")" << 
+                     " - localCov(0,0): " << localCov(0,0) << ", localCov(1,1): " << localCov(1,1));
+      }
+            
+      pixel_clusters.push_back(thiscluster);
 
     }
   }
   ATH_MSG_INFO("Read "<< nPix << " pixel clusters");
 
+  ATH_MSG_INFO("Reading strip clusters");
   SG::ReadHandle<InDet::SCT_ClusterContainer> inputStripClusterContainer(m_inputStripClusterContainerKey, eventContext);
+  
   int nStrip = 0;
+  int stripPoz = 0;
+
   for (const auto *const clusterCollection : *inputStripClusterContainer) {
     if (!clusterCollection) continue;
     for(const auto *const theCluster : *clusterCollection)  {
@@ -145,19 +140,15 @@ std::vector<clusterInfo> TrackingHitInputTool::readClusters( const EventContext&
       const Identifier StripModuleID = m_stripId->module_id(element->identify());
 
       if(m_stripId->side(element->identify()) != 0) {continue;} // not inner side case 
+      ++stripPoz;
 
-      int humanReadableID = 1000000*2 /*2 = Strip*/
-      + 100000*m_stripId->layer_disk(StripModuleID)
-      + 1000*(10+m_stripId->eta_module(StripModuleID))
-      + m_stripId->phi_module(StripModuleID);
-      if ( m_stripId->barrel_ec(StripModuleID) != 0 ) {
-          humanReadableID = m_stripId->barrel_ec(StripModuleID)*(humanReadableID + 10000000);
-      }
-
-      ATH_MSG_DEBUG("Cluster center: " << element->center()[0] << "," << element->center()[1] << "," << element->center()[2]);
+      // if (nStrip <= 10) {
+      //   ATH_MSG_INFO("Strip cluster " << nStrip << " center: " << element->center()[0] << "," << element->center()[1] << "," << element->center()[2]);
+      // }
+      // ATH_MSG_DEBUG("Strip Cluster center: " << element->center()[0] << "," << element->center()[1] << "," << element->center()[2]);
       clusterInfo thiscluster;
-      thiscluster.atlas_id = humanReadableID;
-      uint64_t geometry_id = m_AtlasToDetrayMap[humanReadableID];
+      thiscluster.atlas_id = StripModuleID;
+      uint64_t geometry_id = m_AtlasToDetrayMap[StripModuleID];
       thiscluster.detray_id = geometry_id;
       thiscluster.globalPosition = theCluster->globalPosition();
       thiscluster.localPosition = theCluster->localPosition();
@@ -168,13 +159,24 @@ std::vector<clusterInfo> TrackingHitInputTool::readClusters( const EventContext&
       cov.push_back(localCov(1,1));
       thiscluster.localCov = cov;
       thiscluster.pixel = false;
-      clusters.push_back(thiscluster);
+
+      // Print only for the first 10 clusters
+      if (nStrip <= 10) { 
+        ATH_MSG_INFO("Strip Cluster " << nStrip << 
+                     " - geometry_id: " << geometry_id << 
+                     ", globalPosition: (" << thiscluster.globalPosition.x() << ", " << thiscluster.globalPosition.y() << ", " << thiscluster.globalPosition.z() << ")" << 
+                     ", localPosition: (" << thiscluster.localPosition.x() << ", " << thiscluster.localPosition.y() << ")" << 
+                     " - localCov(0,0): " << localCov(0,0) << ", localCov(1,1): " << localCov(1,1));
+      }
+
+      strip_clusters.push_back(thiscluster);
 
     }
   }
 
-  ATH_MSG_INFO("Read "<< nStrip << " strip clusters");
-  return clusters;
+  ATH_MSG_INFO("Read "<< nStrip << " strip clusters and " << stripPoz << " non-skipped (outer side) clusters ");
+  // return strip_clusters;
+  return strip_clusters;
 
 }
 
@@ -203,17 +205,9 @@ std::vector<hitInfo> TrackingHitInputTool::readHits( const EventContext& eventCo
       const InDetDD::SiDetectorElement* sielement = m_PIX_mgr->getDetectorElement(rdoId); assert(sielement);
       const Identifier Pixel_ModuleID = sielement->identify();
 
-      int humanReadableID = 1000000*1 /*1 = Pixel*/
-      + 100000*m_pixelId->layer_disk(Pixel_ModuleID)
-      + 1000*(10+m_pixelId->eta_module(Pixel_ModuleID))
-      + m_pixelId->phi_module(Pixel_ModuleID);
-      if ( m_pixelId->barrel_ec(Pixel_ModuleID) != 0 ) {
-          humanReadableID = m_pixelId->barrel_ec(Pixel_ModuleID)*(humanReadableID + 10000000);
-      }
-
       Amg::Vector2D LocalPos = sielement->rawLocalPositionOfCell(rdoId);
-      thishit.atlas_id = humanReadableID;
-      uint64_t geometry_id = m_AtlasToDetrayMap[humanReadableID];
+      thishit.atlas_id = Pixel_ModuleID;
+      uint64_t geometry_id = m_AtlasToDetrayMap[Pixel_ModuleID];
       thishit.detray_id = geometry_id;
       thishit.globalPosition = sielement->globalPosition(LocalPos);
       InDetDD::SiCellId id = sielement->cellIdFromIdentifier(rdoId);
@@ -230,7 +224,10 @@ std::vector<hitInfo> TrackingHitInputTool::readHits( const EventContext& eventCo
   }
 
 
+  ATH_MSG_INFO("Reading strip hits");
   int nStrip = 0;
+  constexpr int MaxChannelinStripRow = 128;
+
   auto stripRDOHandle = SG::makeHandle(m_stripRDOKey, eventContext);
   for (const InDetRawDataCollection<SCT_RDORawData>* strip_Collection : *stripRDOHandle) {
     if (strip_Collection == nullptr) { continue; }
@@ -240,25 +237,38 @@ std::vector<hitInfo> TrackingHitInputTool::readHits( const EventContext& eventCo
       const Identifier Strip_ModuleID = m_stripId->module_id(sielement->identify());
       Amg::Vector2D localPos = sielement->rawLocalPositionOfCell(rdoId);
       InDetDD::SiCellId id = sielement->cellIdFromIdentifier(rdoId);
+      int stripID = m_stripId -> strip(rdoId);
+      int side_tmp = m_stripId->side(sielement->identify());
+
+      // Each ITK ABC chip reads 128 channels in one row, so we just need to divide the current strip with 128 to get the chip index
+      // for the Strip ID, it is the remainder left after dividing by 128
+      int chipID = stripID / MaxChannelinStripRow;
+      int ITkStripID = stripID % MaxChannelinStripRow;
+
+      // for each ABC chip readout, each reads 256 channels actually. 0-127 corresponds to lower row and then 128-255 corresponds to the 
+      // upper. This can be simulated in the code by using the eta module index. Even index are not offest, while odd index, the 
+      // strip id is offest by 128
+      // One point to not is that for barrel, the eta module index start at 1, and not zero. Hence a shift of 1 is needed
+      int offset = m_stripId->eta_module(rdoId) % 2;
+      if(m_stripId->barrel_ec(rdoId) == 0) offset = (std::abs(m_stripId->eta_module(rdoId)) - 1) % 2;
+
+      ITkStripID += offset * MaxChannelinStripRow;
+
+      if (m_AtlasToDetrayMap[Strip_ModuleID] == 1536010436653820607) {
+        ATH_MSG_INFO("stripID: " << stripID << " chipID: " << chipID << " offset: " << offset << 
+                    " ITkStripID: " << ITkStripID << " id.strip(): " << id.strip() << " side: " << side_tmp << 
+                    " phiIndex(): " << id.phiIndex() << " etaIndex(): " << id.etaIndex() ); }
+
+      if(m_stripId->side(sielement->identify()) != 0) {continue;} // not inner side case
 
       nStrip++;
 
-      int humanReadableID = 1000000*2 //2 = Strip
-      + 100000*m_stripId->layer_disk(Strip_ModuleID)
-      + 1000*(10+m_stripId->eta_module(Strip_ModuleID))
-      + m_stripId->phi_module(Strip_ModuleID);
-      if ( m_stripId->barrel_ec(Strip_ModuleID) != 0 ) {
-        humanReadableID = m_stripId->barrel_ec(Strip_ModuleID)*(humanReadableID + 10000000);
-      }
-
-      if(humanReadableID == 22464004){ATH_MSG_INFO("I am a strip module!");}
-
       hitInfo thishit;
-      thishit.atlas_id = humanReadableID;
-      uint64_t geometry_id = m_AtlasToDetrayMap[humanReadableID];
+      thishit.atlas_id = Strip_ModuleID;
+      uint64_t geometry_id = m_AtlasToDetrayMap[Strip_ModuleID];
       thishit.detray_id = geometry_id;
       thishit.globalPosition = sielement->globalPosition(localPos);
-      thishit.channel0 = id.phiIndex();
+      thishit.channel0 = id.strip();
       thishit.channel1 = 0;
       
       // do i need this?
@@ -273,8 +283,8 @@ std::vector<hitInfo> TrackingHitInputTool::readHits( const EventContext& eventCo
   ATH_MSG_INFO("Read " << nPix << " pixel hits");
   ATH_MSG_INFO("Read " << nStrip << " strip hits");
 
-  // return strip_hits;
-  return pixel_hits;
+  // return pixel_hits;
+  return strip_hits;
   
 
 }

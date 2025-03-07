@@ -45,9 +45,9 @@ class TrackingAlg : public AthAlgorithm{
       ToolHandle<ITrackingRecoTool> m_recoTool {this, "RecoTool", "EFTracking/TrackingRecoTool", "Reco Tool"};
       ToolHandle<ITrackConversionTool> m_cnvTool {this, "TrackConversionTool", "EFTracking/TrackConversionTool", "Track Conversion Tool"};
 
-      std::map<int, Identifier> m_atlasHumanIDtoIdentifier;
-      std::map<std::uint64_t, int> m_DetrayToAtlasMap;
-      std::map<int, std::uint64_t> m_AtlasToDetrayMap;
+      std::map<Identifier, Identifier> m_atlasHumanIDtoIdentifier;
+      std::map<std::uint64_t, Identifier> m_DetrayToAtlasMap;
+      std::map<Identifier, std::uint64_t> m_AtlasToDetrayMap;
       
       vecmem::host_memory_resource host_mr;
       traccc::silicon_detector_description::host m_dd{host_mr};

@@ -63,8 +63,8 @@ class TrackingRecoTool : public extends<AthAlgTool, ITrackingRecoTool> {
 
         virtual StatusCode initialize() override;
         virtual StatusCode finalize()   override;
-        // virtual traccc::track_state_container_types::host doRecoFromHits(std::vector<hitInfo>& detray_hits)  override;
         // virtual traccc::track_state_container_types::host doRecoFromClusters(std::vector<clusterInfo>& detray_clusters)  override;
+        // virtual traccc::track_state_container_types::host doRecoFromHits(std::vector<hitInfo>& detray_hits)  override;
         virtual traccc::track_state_container_types::host doRecoFromClusters(std::vector<hitInfo>& detray_hits, std::vector<clusterInfo>& detray_clusters)  override;
         
 

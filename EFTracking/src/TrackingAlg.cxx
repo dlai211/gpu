@@ -35,7 +35,7 @@ StatusCode TrackingAlg::initialize(){
 
 void TrackingAlg::getMaps(){
   
-  std::tuple<std::map<std::uint64_t, int>,std::map<int, std::uint64_t>,traccc::silicon_detector_description::host,std::map<int, Identifier>> maps = m_hitMapTool->createMaps();
+  std::tuple<std::map<std::uint64_t, Identifier>,std::map<Identifier, std::uint64_t>,traccc::silicon_detector_description::host,std::map<Identifier, Identifier>> maps = m_hitMapTool->createMaps();
 
   m_DetrayToAtlasMap = std::get<0>(maps);
   m_AtlasToDetrayMap = std::get<1>(maps);
@@ -65,6 +65,7 @@ StatusCode TrackingAlg::execute(){
 
   ATH_MSG_DEBUG("Passing info to traccc");
   traccc::host_container<traccc::fitting_result<detray::cmath<float> >, traccc::track_state<detray::cmath<float> > > traccc_cluster_tracks = m_recoTool->doRecoFromClusters(hits, clusters);
+  // traccc::host_container<traccc::fitting_result<detray::cmath<float> >, traccc::track_state<detray::cmath<float> > > traccc_cluster_tracks = m_recoTool->doRecoFromClusters(clusters);
   // traccc::host_container<traccc::fitting_result<detray::cmath<float> >, traccc::track_state<detray::cmath<float> > > traccc_hit_tracks = m_recoTool->doRecoFromHits(hits);
 
   ATH_MSG_DEBUG("Passing tracks to conversion tool");

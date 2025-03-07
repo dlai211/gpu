@@ -16,8 +16,10 @@ class ITrackingRecoTool : virtual public ::IAlgTool {
         DeclareInterfaceID(ITrackingRecoTool, 1, 0);
         virtual ~ITrackingRecoTool() = default;
 
+        // virtual traccc::track_state_container_types::host doRecoFromClusters(std::vector<clusterInfo>& detray_clusters) = 0;
         // virtual traccc::track_state_container_types::host doRecoFromHits(std::vector<hitInfo>& detray_hits) = 0;
         virtual traccc::track_state_container_types::host doRecoFromClusters(std::vector<hitInfo>& detray_hits, std::vector<clusterInfo>& detray_clusters) = 0;
+
 
 };
 

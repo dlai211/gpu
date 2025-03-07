@@ -33,12 +33,12 @@ class TrackConversionTool : public extends<AthAlgTool, ITrackConversionTool> {
 
         virtual StatusCode initialize() override;
         virtual StatusCode finalize()   override;
-        virtual StatusCode convertTracks(const EventContext& eventContext, traccc::track_state_container_types::host& resolved_tracks, std::map<int, Identifier>& atlasHumanIDtoIdentifier, std::map<std::uint64_t, int>& detrayToAtlasMap) override;
+        virtual StatusCode convertTracks(const EventContext& eventContext, traccc::track_state_container_types::host& resolved_tracks, std::map<Identifier, Identifier>& atlasHumanIDtoIdentifier, std::map<std::uint64_t, Identifier>& detrayToAtlasMap) override;
 
 
   private:
         const Acts::Surface& atlasIdToActsSurface(const Identifier &atlasID);
-        const Acts::BoundTrackParameters convertToActsParameters(const traccc::track_state<detray::cmath<float> >& state, std::map<int, Identifier>& atlasHumanIDtoIdentifier, std::map<std::uint64_t, int>& detrayToAtlasMap);
+        const Acts::BoundTrackParameters convertToActsParameters(const traccc::track_state<detray::cmath<float> >& state, std::map<Identifier, Identifier>& atlasHumanIDtoIdentifier, std::map<std::uint64_t, Identifier>& detrayToAtlasMap);
         const Acts::Surface& atlasIdToActsSurface(Identifier& atlasID);
 
         ToolHandle<IActsTrackingGeometryTool> m_trackingGeometryTool{this, "TrackingGeometryTool", "ActsTrackingGeometryTool"};
