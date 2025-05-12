@@ -19,6 +19,10 @@ struct moduleInfo {
   int rows;
   float thickness;
   int side;
+  int shift;
+  float center0;
+  float center1;
+  float center2;
 };
 
 class ITrackingHitMapTool : virtual public ::IAlgTool {
@@ -28,7 +32,9 @@ class ITrackingHitMapTool : virtual public ::IAlgTool {
         virtual ~ITrackingHitMapTool() = default;
 
         virtual std::vector<hitInfo> mapHits(std::vector<hitInfo>& hits, std::map<Identifier, std::uint64_t>& AtlasToDetrayMap) = 0;
+        // virtual std::vector<hitInfo> mapHits(std::vector<hitInfo>& hits, std::map<Identifier, std::vector<uint64_t>>& AtlasToDetrayMap) = 0;
         virtual std::vector<clusterInfo> mapClusters(std::vector<clusterInfo>& clusters, std::map<Identifier, std::uint64_t>& AtlasToDetrayMap) = 0;
+        // virtual std::vector<clusterInfo> mapClusters(std::vector<clusterInfo>& clusters, std::map<Identifier, std::vector<uint64_t>>& AtlasToDetrayMap) = 0;
         virtual std::tuple<std::map<std::uint64_t, Identifier>,std::map<Identifier, std::uint64_t>,traccc::silicon_detector_description::host,std::map<Identifier, Identifier>> createMaps() = 0;
 
 };

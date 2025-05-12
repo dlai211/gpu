@@ -14,13 +14,12 @@
 #include "InDetRawData/InDetRawDataCollection.h"
 #include "InDetRawData/InDetRawDataContainer.h"
 #include "InDetRawData/InDetRawDataCLASS_DEF.h"
-#include "ReadoutGeometryBase/SiCellId.h"
-#include "ReadoutGeometryBase/SiReadoutCellId.h"
 
 #include "TrackingHitInputTool.h"
 #include <iostream>
 #include <sstream>
 #include <fstream>
+#include <vector>
 
 
 TrackingHitInputTool::TrackingHitInputTool(const std::string& algname, const std::string& name, const IInterface* ifc) :
@@ -43,7 +42,8 @@ StatusCode TrackingHitInputTool::initialize() {
 
 
   // Setting up maps
-  std::ifstream map_file("/eos/project/a/atlas-eftracking/GPU/ITk_data/athenaIdentifierToDetrayMap.txt");
+  // std::ifstream map_file("/eos/project/a/atlas-eftracking/GPU/ITk_data/ATLAS-P2-RUN4-03-00-00/athenaIdentifierToDetrayMap.txt");
+  std::ifstream map_file("/eos/user/j/jlai/itk_data/old/athenaIdentifierToDetrayMap.txt");
 
   ATH_MSG_INFO("Constructing athena to detray map");
   std::string str; 
@@ -63,7 +63,7 @@ StatusCode TrackingHitInputTool::initialize() {
     Identifier idA;
     idA.set(a_id);
     m_AtlasToDetrayMap[idA] = idD;
-    //m_DetrayToAtlasMap[idD] = idA;
+    // m_DetrayToAtlasMap[idD] = idA;
 
   }
 
@@ -118,7 +118,7 @@ std::vector<clusterInfo> TrackingHitInputTool::readClusters( const EventContext&
                      ", localPosition: (" << thiscluster.localPosition.x() << ", " << thiscluster.localPosition.y() << ")" << 
                      " - localCov(0,0): " << localCov(0,0) << ", localCov(1,1): " << localCov(1,1));
       }
-            
+
       pixel_clusters.push_back(thiscluster);
 
     }
@@ -139,7 +139,7 @@ std::vector<clusterInfo> TrackingHitInputTool::readClusters( const EventContext&
       const InDetDD::SiDetectorElement *element=theCluster->detectorElement();
       const Identifier StripModuleID = m_stripId->module_id(element->identify());
 
-      if(m_stripId->side(element->identify()) != 0) {continue;} // not inner side case 
+      if(m_stripId->side(element->identify()) != 0) {continue;} // only side 0 
       ++stripPoz;
 
       // if (nStrip <= 10) {
@@ -166,6 +166,7 @@ std::vector<clusterInfo> TrackingHitInputTool::readClusters( const EventContext&
                      " - geometry_id: " << geometry_id << 
                      ", globalPosition: (" << thiscluster.globalPosition.x() << ", " << thiscluster.globalPosition.y() << ", " << thiscluster.globalPosition.z() << ")" << 
                      ", localPosition: (" << thiscluster.localPosition.x() << ", " << thiscluster.localPosition.y() << ")" << 
+                    //  ", localPosition<1>: (" << (theCluster->localPosition<1>()).x() << ")" <<
                      " - localCov(0,0): " << localCov(0,0) << ", localCov(1,1): " << localCov(1,1));
       }
 
@@ -181,6 +182,7 @@ std::vector<clusterInfo> TrackingHitInputTool::readClusters( const EventContext&
 }
 
 std::vector<hitInfo> TrackingHitInputTool::readHits( const EventContext& eventContext){
+
 
   IdContext cntx = m_pixelId->wafer_context();  
   std::vector<hitInfo> pixel_hits;
@@ -228,11 +230,18 @@ std::vector<hitInfo> TrackingHitInputTool::readHits( const EventContext& eventCo
   int nStrip = 0;
   constexpr int MaxChannelinStripRow = 128;
 
+  // Write out strip cells information in csv file
+  std::string cell_csv_filename = "/eos/user/j/jlai/g200/gpu/G-200/traccc-athena/run/strip_hits.csv";
+  std::ofstream cell_csv_file(cell_csv_filename);
+  cell_csv_file << "geometry_id,athena_id,stripID,chipID,offset,ITkStripID,idPhiIndex,idEtaIndex,barrel_ec,layer_disk,side,phi_module,eta_module,"
+   << "local_x,local_y,global_x,global_y,global_z,center0,center1,center2,thickness,width,length,phiPitch,etaPitch,nFiredStrip,waferID\n";
+
+
   auto stripRDOHandle = SG::makeHandle(m_stripRDOKey, eventContext);
   for (const InDetRawDataCollection<SCT_RDORawData>* strip_Collection : *stripRDOHandle) {
     if (strip_Collection == nullptr) { continue; }
     for (const SCT_RDORawData* stripRawData : *strip_Collection) {
-      const Identifier rdoId = stripRawData->identify();
+      const Identifier rdoId = stripRawData->identify(); // firstStripId
       const InDetDD::SiDetectorElement* sielement = m_SCT_mgr->getDetectorElement(rdoId);
       const Identifier Strip_ModuleID = m_stripId->module_id(sielement->identify());
       Amg::Vector2D localPos = sielement->rawLocalPositionOfCell(rdoId);
@@ -240,48 +249,123 @@ std::vector<hitInfo> TrackingHitInputTool::readHits( const EventContext& eventCo
       int stripID = m_stripId -> strip(rdoId);
       int side_tmp = m_stripId->side(sielement->identify());
 
+      // Group Size Study
+      // if (m_maxFiredStrips != 0u) {
+      //   unsigned int nFiredStrips = 0u;
+      //   nFiredStrips += stripRawData->getGroupSize();
+      //   // if (nFiredStrips > m_maxFiredStrips && nStrip < 10) {
+      //   if (nStrip < 10) {
+      //     ATH_MSG_INFO("m_maxFiredStrips: " << m_maxFiredStrips << " nFiredStrips: " << nFiredStrips);
+      //   }
+      // }
+
+
+
+
+
       // Each ITK ABC chip reads 128 channels in one row, so we just need to divide the current strip with 128 to get the chip index
       // for the Strip ID, it is the remainder left after dividing by 128
       int chipID = stripID / MaxChannelinStripRow;
       int ITkStripID = stripID % MaxChannelinStripRow;
+      int side = m_stripId->side(rdoId);
+      unsigned int nFiredStrip = stripRawData->getGroupSize();
 
       // for each ABC chip readout, each reads 256 channels actually. 0-127 corresponds to lower row and then 128-255 corresponds to the 
       // upper. This can be simulated in the code by using the eta module index. Even index are not offest, while odd index, the 
       // strip id is offest by 128
       // One point to not is that for barrel, the eta module index start at 1, and not zero. Hence a shift of 1 is needed
       int offset = m_stripId->eta_module(rdoId) % 2;
-      if(m_stripId->barrel_ec(rdoId) == 0) offset = (std::abs(m_stripId->eta_module(rdoId)) - 1) % 2;
+      if(m_stripId->barrel_ec(rdoId) == 0) {
+        offset = (std::abs(m_stripId->eta_module(rdoId)) - 1) % 2;
+      };
+
+      const IdentifierHash Strip_ModuleHash = m_stripId->wafer_hash(Strip_ModuleID);
+      const Identifier Strip_ModuleID2 = m_stripId->wafer_id(Strip_ModuleHash + side);
+
 
       ITkStripID += offset * MaxChannelinStripRow;
+      uint64_t geometry_id_tmp = m_AtlasToDetrayMap[Strip_ModuleID];
+      Amg::Vector3D globalPosition_tmp = sielement->globalPosition(localPos);
 
-      if (m_AtlasToDetrayMap[Strip_ModuleID] == 1536010436653820607) {
-        ATH_MSG_INFO("stripID: " << stripID << " chipID: " << chipID << " offset: " << offset << 
-                    " ITkStripID: " << ITkStripID << " id.strip(): " << id.strip() << " side: " << side_tmp << 
-                    " phiIndex(): " << id.phiIndex() << " etaIndex(): " << id.etaIndex() ); }
+      // if (m_AtlasToDetrayMap[Strip_ModuleID] == 1536010436653820607) {
+      //   ATH_MSG_INFO("geometry_id: " << m_AtlasToDetrayMap[Strip_ModuleID] << "stripID: " << stripID << " chipID: " << chipID << " offset: " << offset << 
+      //               " ITkStripID: " << ITkStripID << " id.strip(): " << id.strip() << " side: " << side_tmp << 
+      //               " phiIndex(): " << id.phiIndex() << " etaIndex(): " << id.etaIndex()); }
 
-      if(m_stripId->side(sielement->identify()) != 0) {continue;} // not inner side case
+      cell_csv_file << geometry_id_tmp << ","
+          << Strip_ModuleID2 << ","
+          << stripID << ","
+          << chipID << ","
+          << offset << ","
+          << ITkStripID << ","
+          << id.phiIndex() << ","
+          << id.etaIndex() << ","
+          << m_stripId->barrel_ec(rdoId) << ","
+          << m_stripId->layer_disk(rdoId) << ","
+          << m_stripId->side(rdoId) << "," // m_strip->side(sielement->identify()) << ","
+          << m_stripId->phi_module(rdoId) << ","
+          << m_stripId->eta_module(rdoId) << ","
+          << localPos.x() << ","
+          << localPos.y() << ","
+          << globalPosition_tmp.x() << ","
+          << globalPosition_tmp.y() << ","
+          << globalPosition_tmp.z() << ","
+          << sielement->center()[0] << ","
+          << sielement->center()[1] << ","
+          << sielement->center()[2] << ","
+          << sielement->thickness() << ","
+          << sielement->width() << ","
+          << sielement->length() << ","
+          << sielement->phiPitch() << ","
+          << sielement->etaPitch() << ","
+          << nFiredStrip << "," 
+          << Strip_ModuleHash+side << "\n";
 
-      nStrip++;
+
+      
+
+      if(m_stripId->side(sielement->identify()) == 1) {continue;} // only side 0
+
+
+
 
       hitInfo thishit;
-      thishit.atlas_id = Strip_ModuleID;
-      uint64_t geometry_id = m_AtlasToDetrayMap[Strip_ModuleID];
-      thishit.detray_id = geometry_id;
-      thishit.globalPosition = sielement->globalPosition(localPos);
-      thishit.channel0 = id.strip();
-      thishit.channel1 = 0;
-      
-      // do i need this?
-      //thishit.value = pixelRawData->getToT();
-      thishit.timestamp = 8;
-      strip_hits.push_back(thishit);
-      all_hits.push_back(thishit);
+
+      // nStrip++;
+      // thishit.atlas_id = Strip_ModuleID;
+      // uint64_t geometry_id = m_AtlasToDetrayMap[Strip_ModuleID];
+      // thishit.detray_id = geometry_id;
+      // thishit.globalPosition = sielement->globalPosition(localPos);
+      // thishit.channel0 = id.strip();
+      // thishit.channel1 = 0;
+      // thishit.value = 1;
+      // thishit.timestamp = 8;
+      // strip_hits.push_back(thishit);
+      // all_hits.push_back(thishit);
+
+        
+          
+      for (int i = 0; i < nFiredStrip; i++) {
+          nStrip++;
+          thishit.atlas_id = Strip_ModuleID;
+          uint64_t geometry_id = m_AtlasToDetrayMap[Strip_ModuleID];
+          thishit.detray_id = geometry_id;
+          thishit.globalPosition = sielement->globalPosition(localPos);
+          thishit.channel0 = id.strip() + i;
+          thishit.channel1 = 0;
+          thishit.value = 1;
+          thishit.timestamp = 8;
+          strip_hits.push_back(thishit);
+          all_hits.push_back(thishit);
+      }
 
     }
   }
 
   ATH_MSG_INFO("Read " << nPix << " pixel hits");
   ATH_MSG_INFO("Read " << nStrip << " strip hits");
+  cell_csv_file.close();
+
 
   // return pixel_hits;
   return strip_hits;

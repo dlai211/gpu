@@ -29,7 +29,15 @@
 #include <iostream>
 #include <sstream>
 #include <fstream>
+#include <string>
+#include <cmath>
 #include <nlohmann/json.hpp>  // JSON library
+
+// Inside Athena https://acode-browser1.usatlas.bnl.gov/lxr/source/athena/Tracking/Acts/ActsDataPreparation/src/StripClusteringTool.cxx
+#include "InDetRawData/SCT3_RawData.h"
+#include "SCT_ReadoutGeometry/SCT_ModuleSideDesign.h"
+#include "SCT_ReadoutGeometry/StripStereoAnnulusDesign.h"
+#include "TrkSurfaces/Surface.h"
 
 
 using point3 = detray::dpoint3D<traccc::default_algebra>;
@@ -48,7 +56,8 @@ StatusCode TrackingHitMapTool::initialize() {
 
   // Read the detector.
   detray::io::detector_reader_config reader_cfg{};
-  reader_cfg.add_file("/eos/project/a/atlas-eftracking/GPU/ITk_data/ITk_DetectorBuilder_geometry.json");
+  reader_cfg.add_file("/eos/user/j/jlai/itk_data/new/ITk_DetectorBuilder_geometry.json");
+  // reader_cfg.add_file("/eos/project/a/atlas-eftracking/GPU/ITk_data/ATLAS-P2-RUN4-03-00-00/ITk_DetectorBuilder_geometry.json");
   auto [host_det, _] = detray::io::read_detector<host_detector_type>(host_mr, reader_cfg);
   m_detector = std::move(host_det);
 
@@ -143,7 +152,8 @@ StatusCode TrackingHitMapTool::finalize() {
 
 void TrackingHitMapTool::createAthenaToDetrayMap(){
 
-  std::ifstream map_file("/eos/project/a/atlas-eftracking/GPU/ITk_data/athenaIdentifierToDetrayMap.txt");
+  // std::ifstream map_file("/eos/project/a/atlas-eftracking/GPU/ITk_data/ATLAS-P2-RUN4-03-00-00/athenaIdentifierToDetrayMap.txt");
+  std::ifstream map_file("/eos/user/j/jlai/itk_data/old/athenaIdentifierToDetrayMap.txt");
 
   ATH_MSG_INFO("Constructing athena to detray map");
   std::string str; 
@@ -184,16 +194,30 @@ void TrackingHitMapTool::createAthenaMap() {
   int nAnnu2 = 0;
 
   // Open CSV file for writing
-  std::string csv_filename = "/eos/user/j/jlai/g200/gpu/G-200/traccc-athena/run/ITk_athena_map.csv";
-  std::ofstream csv_file(csv_filename);
-  if (!csv_file.is_open()) {
-    ATH_MSG_FATAL("Failed to open CSV file for writing: " << csv_filename);
+  std::string map_csv_filename = "/eos/user/j/jlai/g200/gpu/G-200/traccc-athena/run/ITk_athena_map.csv";
+  std::ofstream map_csv_file(map_csv_filename);
+  if (!map_csv_file.is_open()) {
+    ATH_MSG_FATAL("Failed to open CSV file for writing: " << map_csv_filename);
     return;
   }
+  map_csv_file << "Module_ID,Barrel_ec,Width,Length,Cell,StripPitch,Shift,Layer_Disk,Phi,Eta,Side,Wafer_Hash,center0,center1,center2\n";
 
-  // Write CSV Header
-  csv_file << "Module_ID,Barrel_ec,Layer_Disk,Phi,Eta,Side,StripWafer_Hash\n";
+  // Open CSV file for writing (BarrelModuleSideDesign)
+  std::string barrel_csv_filename = "/eos/user/j/jlai/g200/gpu/G-200/traccc-athena/run/barrel_module.csv";
+  std::ofstream barrel_csv_file(barrel_csv_filename);
+  if (!barrel_csv_file.is_open()) {
+    ATH_MSG_FATAL("Failed to open CSV file for writing: " << barrel_csv_filename);
+    return;
+  }
+  barrel_csv_file << "width,length,cells,shift,stripPitch,stripLength,phiStripPatternCentre,etaStripPatternCentre,phiPitch,etaPitch,thickness,barrel_ec,layer_disk,phi_module,eta_module\n";
   
+  std::string annulus_csv_filename = "/eos/user/j/jlai/g200/gpu/G-200/traccc-athena/run/annulus_module.csv";
+  std::ofstream annulus_csv_file(annulus_csv_filename);
+  if (!annulus_csv_file.is_open()) {
+    ATH_MSG_FATAL("Failed to open CSV file for writing: " << annulus_csv_filename);
+    return;
+  }
+  annulus_csv_file << "width,length,cells,shift,stripPitch,thickness,barrel_ec,layer_disk,phi_module,eta_module\n";
 
   SG::ReadCondHandle<InDetDD::SiDetectorElementCollection> stripDetEleHandle(m_stripDetEleCollKey);
   const InDetDD::SiDetectorElementCollection* strip_elements(*stripDetEleHandle);
@@ -201,44 +225,40 @@ void TrackingHitMapTool::createAthenaMap() {
      ATH_MSG_FATAL(m_stripDetEleCollKey.fullKey() << " is not available.");
   }
   for (const InDetDD::SiDetectorElement *element: *strip_elements) {
-    const Identifier Strip_ModuleID = m_stripId->module_id(element->identify()); //from wafer id to module id
-    const IdentifierHash Strip_ModuleHash = m_stripId->wafer_hash(Strip_ModuleID);
+    const Identifier strip_moduleID = m_stripId->module_id(element->identify()); //from wafer id to module id
+    const IdentifierHash Strip_ModuleHash = m_stripId->wafer_hash(strip_moduleID);
+
+    // Extract the correct Strip_ModuleID
+    int side = m_stripId->side(element->identify());
+    const Identifier Strip_ModuleID = m_stripId->wafer_id(Strip_ModuleHash + side);
 
     // Extract side information (0 = inner, 1 = outer)
     int layer_disk = m_stripId->layer_disk(element->identify());
-    int eta_module = m_stripId->eta_module(element->identify());
-    int phi_module = m_stripId->phi_module(element->identify());
+    float eta_module = m_stripId->eta_module(element->identify());
+    float phi_module = m_stripId->phi_module(element->identify());
     int barrel_ec = m_stripId->barrel_ec(element->identify());
-    int side = m_stripId->side(element->identify());
-    int strip_tmp = m_stripId->strip(element->identify());
-
+    float shift = 0.0;
+    float stripPitch = 0.0;
+    float cell = 0.0;
+    float length = 0.0;
+    float width = 0.0;
 
     if (m_ModuleList.find(Strip_ModuleID) == m_ModuleList.end()){
 
       // if (side != 0) { continue; }
       // if (m_stripId->side(element->identify()) != 0) { continue; } // not inner side case
 
-      csv_file << Strip_ModuleID << ","
-               << barrel_ec << ","
-               << layer_disk << ","
-               << phi_module << ","
-               << eta_module << ","
-               << side << ","
-               << strip_tmp << ","
-               << Strip_ModuleHash << "\n";
 
-      // m_atlasHumanIDToIdentifier[m_HumanReadableID] = Strip_ModuleID;
-      m_atlasHumanIDToIdentifier[Strip_ModuleID] = Strip_ModuleID;
-
-      // if(m_atlasModuleInfo.find(m_HumanReadableID) != m_atlasModuleInfo.end()){
-        // ATH_MSG_INFO("repeating sideAwareID, Weird");
-        // continue;}
+      // const Identifier Strip_ModuleID2 = m_stripId->wafer_id(Strip_ModuleHash+side);
 
       ++nStrip;
       ATH_MSG_VERBOSE( "Strip module " << nStrip );
 
       moduleInfo thismod;
-      // thismod.side = side; // store side information
+      // I don't know if pixel need this information.
+      thismod.center0 = 0.0;
+      thismod.center1 = 0.0;
+      thismod.center2 = 0.0;
 
       //const InDetDD::SCT_ModuleSideDesign* s_design;
       if (m_stripId->barrel_ec(Strip_ModuleID) == 0) {
@@ -261,14 +281,60 @@ void TrackingHitMapTool::createAthenaMap() {
             
             thismod.module_width = s_design->width();
             thismod.module_length = s_design->length();
-            thismod.rows = s_design->cells(); // same as s_design->width() / s_design_stripPitch();
+            thismod.rows = s_design->cells(); // same as s_design->width() / s_design->stripPitch();
+            thismod.shift = s_design->shift();
+
+
+            // To save in df_map csv file
+            width = s_design->width();
+            length = s_design->length();
+            cell = s_design->cells();
+            shift = s_design->shift();
+            stripPitch = s_design->stripPitch();
 
             if (nRect1 < 10) {
               ATH_MSG_INFO(" nRect1, s_design->width(): " << s_design->width() << 
-                           " nRect1, s_design->length(): " << s_design->length() <<
-                           " nRect1, s_design->cells(): " << s_design->cells() <<
-                           " nRect1, s_design->stripPitch(): " << s_design->stripPitch() << 
-                           " nRect1, s_design->stripLength(): " << s_design->stripLength() );
+                           " length(): " << s_design->length() <<
+                           " cells(): " << s_design->cells() <<
+                           " shift(): " << s_design->shift() <<
+                           " stripPitch(): " << s_design->stripPitch() << "\n" <<
+                           " stripLength(): " << s_design->stripLength() <<
+                           " phiStripPatternCentre(): " << s_design->phiStripPatternCentre() <<
+                           " etaStripPatternCentre(): " << s_design->etaStripPatternCentre() <<
+                           " phiPitch(): " << s_design->phiPitch() <<
+                           " etaPitch(): " << s_design->etaPitch() );
+            }
+
+            
+    // Extract side information (0 = inner, 1 = outer)
+    int layer_disk = m_stripId->layer_disk(element->identify());
+    float eta_module = m_stripId->eta_module(element->identify());
+    float phi_module = m_stripId->phi_module(element->identify());
+    int barrel_ec = m_stripId->barrel_ec(element->identify());
+
+            barrel_csv_file << s_design->width() << ","
+            << s_design->length() << ","
+            << s_design->cells() << ","
+            << s_design->shift() << ","
+            << s_design->stripPitch() << ","
+            << s_design->stripLength() << ","
+            << s_design->phiStripPatternCentre() << ","
+            << s_design->etaStripPatternCentre() << ","
+            << s_design->phiPitch() << ","
+            << s_design->etaPitch() << ","
+            << thismod.thickness << ","
+            << barrel_ec << ","
+            << layer_disk << ","
+            << phi_module << ","
+            << eta_module << "\n";
+
+            if (s_design->cells() != s_design->width() / s_design->stripPitch()) {
+              ATH_MSG_INFO(" nRect1, problem, width(): " << s_design->width() << 
+              " length(): " << s_design->length() <<
+              " cells(): " << s_design->cells() <<
+              " shift(): " << s_design->shift() <<
+              " stripPitch(): " << s_design->stripPitch() << 
+              " stripLength(): " << s_design->stripLength() );
             }
 
         }
@@ -325,31 +391,87 @@ void TrackingHitMapTool::createAthenaMap() {
         }
         if (boundsType == Trk::SurfaceBounds::Annulus)   {
             ++nAnnu2;
+            // thismod.module_width = s_design->width();
             thismod.module_width = s_design->width();
             thismod.module_length = s_design->length();
+            int row_tmp = s_design->width()/s_design->stripPitch();
             thismod.rows = s_design->cells();
+            thismod.shift = s_design->shift();
+
+            // To save in df_map csv file
+            width = s_design->width();
+            length = s_design->length();
+            cell = s_design->cells();
+            shift = s_design->shift();
+            stripPitch = s_design->stripPitch();
+
 
             if (nAnnu2 < 10) {
               ATH_MSG_INFO(" nAnnu2, s_design->width(): " << s_design->width() << 
                            " nAnnu2, s_design->length(): " << s_design->length() <<
                            " nAnnu2, s_design->cells(): " << s_design->cells() <<
+                           " nAnnu2, s_design->shift(): " << s_design->shift() <<
                            " nAnnu2, s_design->stripPitch(): " << s_design->stripPitch());
             }
+
+            annulus_csv_file << s_design->width() << ","
+            << s_design->length() << ","
+            << s_design->cells() << ","
+            << s_design->shift() << ","
+            << s_design->stripPitch() << ","
+            << thismod.thickness << ","
+            << barrel_ec << ","
+            << layer_disk << ","
+            << phi_module << ","
+            << eta_module << "\n";
+
+
+            // if (s_design->cells() != s_design->width() / s_design->stripPitch()) {
+            //   ATH_MSG_INFO(" nAnnu2, problem, width(): " << s_design->width() << 
+            //   " length(): " << s_design->length() <<
+            //   " cells(): " << s_design->cells() <<
+            //   " shift(): " << s_design->shift() <<
+            //   " stripPitch(): " << s_design->stripPitch());
+            // }
         }
           
       }
-      m_atlasModuleInfo[Strip_ModuleID] = thismod;
      
-      const InDetDD::SiDetectorElement *module = strip_elements->getDetectorElement(Strip_ModuleHash);
+      const InDetDD::SiDetectorElement *module = strip_elements->getDetectorElement(Strip_ModuleHash+side);
       std::vector<const Trk::Surface*> module_surfaces = module->surfaces();
 
-      m_atlasModuleMap[Strip_ModuleID][0] = module->center()[0];
-      m_atlasModuleMap[Strip_ModuleID][1] = module->center()[1];
-      m_atlasModuleMap[Strip_ModuleID][2] = module->center()[2];
+      thismod.center0 = module->center()[0];
+      thismod.center1 = module->center()[1];
+      thismod.center2 = module->center()[2];
+
+      // m_atlasModuleMap[Strip_ModuleID][0] = module->center()[0];
+      // m_atlasModuleMap[Strip_ModuleID][1] = module->center()[1];
+      // m_atlasModuleMap[Strip_ModuleID][2] = module->center()[2];
       m_atlasHumanIDToIdentifier[Strip_ModuleID] = Strip_ModuleID;
+
+      m_atlasModuleInfo[Strip_ModuleID] = thismod;
       
-      ATH_MSG_VERBOSE( "Human Readable ID: " << Strip_ModuleID << module->center()[0] << "," << module->center()[1] << "," << module->center()[2]);
-             
+      if (nStrip < 10) {
+        ATH_MSG_INFO( "Human Readable ID: " << Strip_ModuleID << " center2: " << thismod.center2 << " surface: " << module->surfaces() << " wafer_id: " << m_stripId->wafer_id(Strip_ModuleHash+side));
+      }
+
+      map_csv_file << Strip_ModuleID << ","
+      << barrel_ec << ","
+      << width << ","
+      << length << ","
+      << cell << ","
+      << stripPitch << ","
+      << shift << ","
+      << layer_disk << ","
+      << phi_module << ","
+      << eta_module << ","
+      << side << ","
+      << Strip_ModuleHash+side << ","
+      << module->center()[0] << ","
+      << module->center()[1] << ","
+      << module->center()[2] << "\n";
+    } else {
+      ATH_MSG_WARNING( "Module ID " << Strip_ModuleID << " does NOT exist in the m_ModuleList." );
     }
   }
 
@@ -391,6 +513,7 @@ void TrackingHitMapTool::createAthenaMap() {
           thismod.module_length = p_design->length();
           thismod.rows = p_design->rows();
           thismod.columns = p_design->columns();
+          thismod.shift = 0;
 
         }
         if (boundsType == Trk::SurfaceBounds::Trapezoid) {
@@ -433,8 +556,12 @@ void TrackingHitMapTool::createAthenaMap() {
   ATH_MSG_INFO( "Wrote segmentation info for " << m_atlasModuleInfo.size() << " modules");
 
   // Close CSV file
-  csv_file.close();
-  ATH_MSG_INFO("Successfully saved Athena map data to CSV: " << csv_filename);
+  map_csv_file.close();
+  barrel_csv_file.close();
+  annulus_csv_file.close();
+  ATH_MSG_INFO("Successfully saved Athena map data to CSV: " << map_csv_filename);
+  ATH_MSG_INFO("Successfully saved Barrel Module data to CSV: " << barrel_csv_filename);
+  ATH_MSG_INFO("Successfully saved Annulus Module data to CSV: " << annulus_csv_filename);
   
 
 }
@@ -471,55 +598,56 @@ void TrackingHitMapTool::fill_digi_info(){
     m_dd.reserve(m_detector.surfaces().size());
     int pcount = 0;
     int scount = 0;
-    std::set<Identifier> processed_a_mods;  // set to track processed Athena Geometry IDs
-    std::map<Identifier, int> a_mod_count;
+    std::set<Identifier> processed_athena_ids;  // set to track processed Athena Geometry IDs
+    std::map<Identifier, int> athena_id_count;
 
     // Open the ActsToAthena map
-    std::ifstream map_file("/eos/project/a/atlas-eftracking/GPU/ITk_data/actsToAthenaIdentifierMap.txt");
-    if (!map_file.is_open()) {
-      ATH_MSG_ERROR("Failed to open actsToAthenaIdentifierMap.txt");
-      return;
-    }
+    // std::ifstream map_file("/eos/project/a/atlas-eftracking/GPU/ITk_data/ATLAS-P2-RUN4-03-00-00/actsToAthenaIdentifierMap.txt");
+    // std::ifstream map_file("/eos/user/j/jlai/itk_data/old/actsToAthenaIdentifierMap.txt");
+    // if (!map_file.is_open()) {
+    //   ATH_MSG_ERROR("Failed to open actsToAthenaIdentifierMap.txt");
+    //   return;
+    // }
 
-    // Read the ActsToAthena mapping and store it in a temporary map
-    std::map<Identifier, std::tuple<int, int, int>> AthenaGeometryMap;  // Key: a_mod, Value: (volume, layer, sensor)
-    std::string line;
+    // // Read the ActsToAthena mapping and store it in a temporary map
+    // std::map<Identifier, std::tuple<int, int, int>> AthenaGeometryMap;  // Key: athena_id, Value: (volume, layer, sensor)
+    // std::string line;
 
-    while (std::getline(map_file, line)) {
+    // while (std::getline(map_file, line)) {
 
-        std::stringstream ss(line);
-        std::vector<std::string> segments;
-        std::string temp;
+    //     std::stringstream ss(line);
+    //     std::vector<std::string> segments;
+    //     std::string temp;
 
-        // Split line by '|' first, then extract the last value after ','
-        while (std::getline(ss, temp, '|')) {
-            segments.push_back(temp);
-        }
+    //     // Split line by '|' first, then extract the last value after ','
+    //     while (std::getline(ss, temp, '|')) {
+    //         segments.push_back(temp);
+    //     }
 
-        // Ensure correct format
-        if (segments.size() < 3) {
-            ATH_MSG_WARNING("Invalid format in actsToAthenaIdentifierMap.txt: " << line);
-            continue;
-        }
+    //     // Ensure correct format
+    //     if (segments.size() < 3) {
+    //         ATH_MSG_WARNING("Invalid format in actsToAthenaIdentifierMap.txt: " << line);
+    //         continue;
+    //     }
 
-        // Extract volume, layer, sensor ID
-        int volume = std::stoi(segments[0].substr(4));    // Remove "vol="
-        int layer = std::stoi(segments[1].substr(4));     // Remove "lay="
-        int sensor = std::stoi(segments[2].substr(4, segments[2].find(',')));  // Extract "sen="
+    //     // Extract volume, layer, sensor ID
+    //     int volume = std::stoi(segments[0].substr(4));    // Remove "vol="
+    //     int layer = std::stoi(segments[1].substr(4));     // Remove "lay="
+    //     int sensor = std::stoi(segments[2].substr(4, segments[2].find(',')));  // Extract "sen="
 
-        // Extract Athena geometry ID (a_mod)
-        std::string a_mod_str = segments[2].substr(segments[2].find(',') + 1);
-        Identifier a_mod = Identifier(std::stoull(a_mod_str, nullptr, 16));  // Convert to int
+    //     // Extract Athena geometry ID (athena_id)
+    //     std::string athena_id_str = segments[2].substr(segments[2].find(',') + 1);
+    //     Identifier athena_id = Identifier(std::stoull(athena_id_str, nullptr, 16));  // Convert to int
 
-        // Track count of a_mod occurrences
-        a_mod_count[a_mod]++;
+    //     // Track count of athena_id occurrences
+    //     athena_id_count[athena_id]++;
 
-        // Store in the map
-        AthenaGeometryMap[a_mod] = std::make_tuple(volume, layer, sensor);
-    }
-    map_file.close();
+    //     // Store in the map
+    //     AthenaGeometryMap[athena_id] = std::make_tuple(volume, layer, sensor);
+    // }
+    // map_file.close();
 
-    ATH_MSG_INFO("Loaded Acts-to-Athena mapping with " << AthenaGeometryMap.size() << " entries");
+    // ATH_MSG_INFO("Loaded Acts-to-Athena mapping with " << AthenaGeometryMap.size() << " entries");
 
     // Saving digi config file
     nlohmann::json json_output;
@@ -552,75 +680,68 @@ void TrackingHitMapTool::fill_digi_info(){
       auto id = surface.barcode().value();
       const auto geo_id = surface.source;
       Acts::GeometryIdentifier acts_geom_id{geo_id};
+      
+      Identifier athena_id = Identifier(m_DetrayToAtlasMap[id]);
 
-      Identifier a_mod = Identifier(m_DetrayToAtlasMap[id]);
+      if (pcount + scount <= 10) {
+        ATH_MSG_INFO("geo_id: " << geo_id << " acts_id: " << acts_geom_id << " id: " << id << " athena_id: " << athena_id);
+        // athena_id = Identifier(athena_id.get_compact() | 0x0000800000000);        // this needs to be tested 
+      }
 
-      // If a_mod is repeated more than once, skip and print
-      if (a_mod_count[a_mod] > 2) {
-        ATH_MSG_WARNING("Skipping duplicate Athena ID: " << a_mod << " which appeared " << a_mod_count[a_mod] << " times.");
-        continue; }
+      /*
+        AthenaID = athena_id, ACTSID = acts_geom_id , DetrayGeometryID = geo_id
+        need Placement_Z = sf.transform(context).translation()[2] for Detray
+        need center[2] for athena_id (need to save this from above)
+      */
 
-      // If it appears exactly once, increment sensor count by 1
-      if (processed_a_mods.find(a_mod) != processed_a_mods.end()) {
-          AthenaGeometryMap[a_mod] = std::make_tuple(std::get<0>(AthenaGeometryMap[a_mod]), 
-                                                      std::get<1>(AthenaGeometryMap[a_mod]), 
-                                                      std::get<2>(AthenaGeometryMap[a_mod]) - 1); }
-      processed_a_mods.insert(a_mod);
+      // std::stringstream ss(acts_geom_id);
+      std::ostringstream oss;
+      oss << acts_geom_id;
+      std::stringstream ss(oss.str());
+      
+      std::vector<std::string> parts;
+      std::string part;
+      while (std::getline(ss, part, '|')) {
+          parts.push_back(part);
+      }
 
-      // if (m_atlasModuleInfo.find(a_mod) == m_atlasModuleInfo.end()) {
-      //  ATH_MSG_WARNING("Cannot find this module " << a_mod )
-      // continue;
-      moduleInfo thismod = m_atlasModuleInfo[a_mod];
+      int volume = std::stoi(parts[0].substr(4));    // Remove "vol="
+      int layer = std::stoi(parts[1].substr(4));    // Remove "lay="
+      int sensor = std::stoi(parts[2].substr(4));    // Remove "sen="
 
-      // // Check if side-aware ID exists in m_atlasModuleInfo
-      // if (m_atlasModuleInfo.find(sideAwareID) != m_atlasModuleInfo.end()) {
-      //     thismod = m_atlasModuleInfo[sideAwareID]; 
-      //     if (scount <= 10) {
-      //     ATH_MSG_INFO("Retrieving module " << a_mod << 
-      //                  " sideAwareID " << sideAwareID <<
-      //                 " with Side: " << thismod.side);}
-      // }
+      // Match the correct athena_id
+      float placement_x = sf.transform(context).translation()[0];
+      float placement_y = sf.transform(context).translation()[1];
+      float placement_z = sf.transform(context).translation()[2];
 
-      // if (scount <= 50) {
-      //   ATH_MSG_INFO("Retrieving module " << a_mod << " with Side: " << thismod.side);
-      // }
 
-      // Fetch volume, layer, sensor from AthenaGeometryMap
-      // Declare local variables for volume, layer, sensor
-      int volume = -1, layer = -1, sensor = -1;
-      if (AthenaGeometryMap.find(a_mod) != AthenaGeometryMap.end()) {
-        std::tie(volume, layer, sensor) = AthenaGeometryMap[a_mod];
-      } else {
-          ATH_MSG_WARNING("No mapping found for Athena Geometry ID: " << a_mod);
+      // Make the correct athena_id
+      if (volume == 22 || volume == 23 || volume == 24) {
+        if (sensor % 2 == 0) { // even
+          athena_id = Identifier(athena_id.get_compact() | 0x0008000000000);
+          // ATH_MSG_INFO(" athena_id even side: " << athena_id);
+        }
+      }
+
+      moduleInfo thismod = m_atlasModuleInfo[athena_id];
+
+      // Check if the athena_id is correct
+      if (!thismod.pixel) {
+        if (volume == 22 || volume == 24) { // annulus
+          if (abs(placement_z - thismod.center2) > 0.1) {
+            ATH_MSG_INFO("Annulus wrong!" << " placement_z: " << placement_z << " center2: " << thismod.center2);
+          }
+        } else if (volume == 23) { // barrel
+          if ((abs(placement_x - thismod.center0) > 0.1) || (abs(placement_y - thismod.center1) > 0.1)) {
+            ATH_MSG_INFO("Barrel wrong!" << " placement_x: " << placement_x << " center0: " << thismod.center0);
+          }
+        }
       }
 
       int side = thismod.side;
 
 
       if (thismod.pixel) {         
-        if (pcount <= 10) { // Print the Pixel data but do NOT save in m_dd
-        ATH_MSG_INFO("Pixel - Detray geometry_id: " << id << " Athena geometry_id: " << a_mod << " vol: " << volume << " lay: " << layer << " sen: " << sensor 
-                    << " side: " << side
-                    << ", placement: (" 
-                    << sf.transform(context).translation()[0] << ", "
-                    << sf.transform(context).translation()[1] << ", "
-                    << sf.transform(context).translation()[2] << ")"
-                    << ", rotation: (" 
-                    << sf.transform(context).rotation()[0] << ", "
-                    << sf.transform(context).rotation()[1] << ", "
-                    << sf.transform(context).rotation()[2] << ")"
-                    << ", threshold: 0"
-                    << ", reference_x: " << (-thismod.module_width * 0.5)
-                    << ", reference_y: " << (-thismod.module_length * 0.5)
-                    << ", pitch_x: " << (thismod.module_width / thismod.rows)
-                    << ", pitch_y: " << (thismod.module_length / thismod.columns)
-                    << ", module width: " << (thismod.module_width)
-                    << ", module length: " << (thismod.module_length)
-                    << ", module rows: " << (thismod.rows)
-                    << ", module columns: " << (thismod.columns)
-                    << ", dimensions: 2"); // Pixels are always dim = 2
-        pcount++;}
-        // continue; 
         json_output["entries"].push_back({
           {"layer", layer},
           {"sensitive", sensor},
@@ -653,61 +774,84 @@ void TrackingHitMapTool::fill_digi_info(){
 
       }
       else {
-        if (scount <= 10) {
-          ATH_MSG_INFO("Strip - Detray geometry_id: " << id << " Athena geometry_id: " << a_mod << " vol: " << volume << " lay: " << layer << " sen: " << sensor 
-                      << " side: " << side
-                      << ", placement: (" 
-                      << sf.transform(context).translation()[0] << ", "
-                      << sf.transform(context).translation()[1] << ", "
-                      << sf.transform(context).translation()[2] << ")"
-                      << ", rotation: (" 
-                      << sf.transform(context).rotation()[0] << ", "
-                      << sf.transform(context).rotation()[1] << ", "
-                      << sf.transform(context).rotation()[2] << ")"
-                      << ", threshold: 0"
-                      << ", reference_x: " << (-thismod.module_width * 0.5)
-                      << ", reference_y: " << (-thismod.module_length * 0.5)
-                      << ", pitch_x: " << (thismod.module_width / thismod.rows)
-                      << ", pitch_y: " << (thismod.module_length / thismod.columns)
-                      << ", module width: " << (thismod.module_width)
-                      << ", module length: " << (thismod.module_length)
-                      << ", module rows: " << (thismod.rows)
-                      << ", module columns: " << (thismod.columns)
-                      << ", dimensions: 1"); 
-          scount++;
-        }
+        if (volume == 22 || volume == 24) { // annulus
 
-        json_output["entries"].push_back({
-          {"layer", layer},
-          {"sensitive", sensor},
-          {"volume", volume},
-          {"value", {
-              {"geometric", {
-                  {"segmentation", {
-                      {"binningdata", {
-                          {
+          // Convert x, y to radius, angle
+          // thismod.module_width = arc_length
+          float x_tmp = thismod.center0;
+          float y_tmp = thismod.center1;
+          float radius = std::sqrt(x_tmp * x_tmp + y_tmp * y_tmp);
+
+          float half_pi = M_PI / 2;
+          float dtheta = thismod.module_width / radius;
+          float theta_min = half_pi + 0.5 * dtheta;
+          float theta_max = half_pi - 0.5 * dtheta;
+
+          json_output["entries"].push_back({
+            {"layer", layer},
+            {"sensitive", sensor},
+            {"volume", volume},
+            {"value", {
+                {"geometric", {
+                    {"segmentation", {
+                        {"binningdata", {
+                            {
                               {"bins", thismod.rows},
-                              {"max", thismod.module_width * 0.5},
-                              {"min", -thismod.module_width * 0.5},
+                              {"max", theta_max},
+                              {"min", theta_min},
                               {"option", "open"}, // change back to open
                               {"type", "equidistant"},
                               {"value", "binX"}
                           },
                           {
                               {"bins", 1}, // for strip, bin must be 1
-                              {"max", thismod.module_length * 0.5},
-                              {"min", -thismod.module_length * 0.5},
+                              {"max", radius+0.1},
+                              {"min", radius-0.1},
                               {"option", "open"},
                               {"type", "equidistant"},
                               {"value", "binY"}
                           }
+                        }}
                       }}
                     }}
                   }}
-                }}
-              });
+                });  
+        }
 
-        csv_file << id << "," << a_mod << "," << volume << "," << layer << "," << sensor << ","
+        if (volume == 23) { // barrel
+          json_output["entries"].push_back({
+            {"layer", layer},
+            {"sensitive", sensor},
+            {"volume", volume},
+            {"value", {
+                {"geometric", {
+                    {"segmentation", {
+                        {"binningdata", {
+                            {
+                                {"bins", thismod.rows},
+                                {"max", thismod.module_width * 0.5},
+                                {"min", -thismod.module_width * 0.5},
+                                {"option", "open"}, // change back to open
+                                {"type", "equidistant"},
+                                {"value", "binX"}
+                            },
+                            {
+                                {"bins", 1}, // for strip, bin must be 1
+                                {"max", thismod.module_length * 0.5},
+                                {"min", -thismod.module_length * 0.5},
+                                {"option", "open"},
+                                {"type", "equidistant"},
+                                {"value", "binY"}
+                            }
+                        }}
+                      }}
+                    }}
+                  }}
+                });  
+        }
+
+
+        csv_file << id << "," << athena_id << "," << volume << "," << layer << "," << sensor << ","
                 << side << ","
                 << sf.transform(context).translation()[0] << "," 
                 << sf.transform(context).translation()[1] << "," 

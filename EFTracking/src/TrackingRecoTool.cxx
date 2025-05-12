@@ -48,12 +48,17 @@ StatusCode TrackingRecoTool::initialize() {
   
   // Read the detector.
   detray::io::detector_reader_config reader_cfg{};
-  reader_cfg.add_file("/eos/project/a/atlas-eftracking/GPU/ITk_data/ITk_DetectorBuilder_geometry.json");
-  reader_cfg.add_file("/eos/project/a/atlas-eftracking/GPU/ITk_data/ITk_DetectorBuilder_surface_grids.json");
+//   reader_cfg.add_file("/eos/project/a/atlas-eftracking/GPU/ITk_data/ATLAS-P2-RUN4-03-00-00/ITk_DetectorBuilder_geometry.json");
+//   reader_cfg.add_file("/eos/project/a/atlas-eftracking/GPU/ITk_data/ATLAS-P2-RUN4-03-00-00/ITk_DetectorBuilder_surface_grids.json");
+
+  reader_cfg.add_file("/eos/user/j/jlai/itk_data/new/ITk_DetectorBuilder_geometry.json");
+  reader_cfg.add_file("/eos/user/j/jlai/itk_data/new/ITk_DetectorBuilder_surface_grids.json");
+
   auto [host_det, _] = detray::io::read_detector<host_detector_type>(host_mr, reader_cfg);
   m_detector = std::move(host_det);
 
-  traccc::io::read_detector_description(m_dd,"/eos/project/a/atlas-eftracking/GPU/ITk_data/ITk_DetectorBuilder_geometry.json","/eos/project/a/atlas-eftracking/GPU/ITk_data/ITk_digitization_config.json", traccc::data_format::json);
+//   traccc::io::read_detector_description(m_dd,"/eos/project/a/atlas-eftracking/GPU/ITk_data/ATLAS-P2-RUN4-03-00-00/ITk_DetectorBuilder_geometry.json","/eos/project/a/atlas-eftracking/GPU/ITk_data/ATLAS-P2-RUN4-03-00-00/ITk_digitization_config.json", traccc::data_format::json);
+  traccc::io::read_detector_description(m_dd,"/eos/user/j/jlai/itk_data/new/ITk_DetectorBuilder_geometry.json","/eos/user/j/jlai/itk_data/new/ITk_digitization_config.json", traccc::data_format::json);
   
   m_bFieldInZ = 1.99724;
 
@@ -341,9 +346,7 @@ traccc::track_state_container_types::host TrackingRecoTool::doRecoFromClusters(s
     // auto context = Gaudi::Hive::currentContext();
     // std::size_t event_n = context.eventID().event_number();
     std::cout << "writing cell data" << std::endl;
-    // traccc::io::write(m_n_event,"/eos/user/j/jlai/g200/ITk_data/ITk_hit_data/",traccc::data_format::csv, vecmem::get_data(cells_per_event),vecmem::get_data(m_dd),false);
     traccc::io::write(m_n_event,"/eos/user/j/jlai/g200/gpu/G-200/traccc-athena/run",traccc::data_format::csv, vecmem::get_data(cells_per_event),vecmem::get_data(m_dd),false);
-
         
     ATH_MSG_INFO("Start of cluster saving");
     ATH_MSG_INFO("Number of clusters: " << detray_clusters.size());
@@ -832,8 +835,9 @@ void TrackingRecoTool::make_test_data(int m_n_event,std::vector<clusterInfo>& de
         hitfile << i << "," << thiscluster.detray_id << "," << thiscluster.globalPosition[0] << "," << thiscluster.globalPosition[1] << "," << thiscluster.globalPosition[2];
         hitfile << "," << "0,0,0,0,0,0,0,0,0,0" << "\n";
 
-        measfile << i << "," << thiscluster.detray_id << ",6," << thiscluster.localPosition[0] << "," << thiscluster.localPosition[1] << ",";
-        measfile << "0,0,0,0.0025,0.0025,0,0,0" << "\n";
+        measfile << i << "," << thiscluster.detray_id << "," << thiscluster.local_key << "," << thiscluster.localPosition[0] << "," << thiscluster.localPosition[1] << ",";
+        // measfile << "0,0,0,0.0025,0.0025,0,0,0" << "\n";
+        measfile << "0,0,0," << thiscluster.localCov[0] << "," << thiscluster.localCov[1] << ",0,0,0" << "\n";
         mapfile << i << "," << i << "\n";
 
     }

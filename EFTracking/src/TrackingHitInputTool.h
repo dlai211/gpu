@@ -57,7 +57,12 @@ class TrackingHitInputTool : public extends<AthAlgTool, ITrackingHitInputTool> {
          const SCT_ID*  m_stripId;
 
          std::map<Identifier, std::uint64_t> m_AtlasToDetrayMap;
+        //  std::map<Identifier, std::vector<uint64_t>> m_AtlasToDetrayMap;
          std::map<std::uint64_t, Identifier> m_DetrayToAtlasMap;
+
+         Gaudi::Property<unsigned int> m_maxFiredStrips {this, "maxFiredStrips", 384u,
+          "Threshold of number of fired strips per wafer. 0 disables the per-wafer cut."};
+        
 };
 
 #endif
