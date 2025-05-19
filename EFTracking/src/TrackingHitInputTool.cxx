@@ -16,10 +16,31 @@
 #include "InDetRawData/InDetRawDataCLASS_DEF.h"
 
 #include "TrackingHitInputTool.h"
+
+#include "SCT_ReadoutGeometry/SCT_ModuleSideDesign.h"
+#include "SCT_ReadoutGeometry/StripStereoAnnulusDesign.h"
+#include "SCT_ReadoutGeometry/SCT_BarrelModuleSideDesign.h"
+#include "SCT_ReadoutGeometry/SCT_ForwardModuleSideDesign.h"
+#include "xAODInDetMeasurement/PixelClusterAuxContainer.h"
+#include "xAODInDetMeasurement/StripClusterAuxContainer.h"
+
 #include <iostream>
 #include <sstream>
 #include <fstream>
+#include <string>
 #include <vector>
+#include <iomanip>
+
+// Athena StripClusteringTool.cxx
+#include <InDetRawData/SCT3_RawData.h>
+#include <SCT_ReadoutGeometry/SCT_ModuleSideDesign.h>
+#include <SCT_ReadoutGeometry/StripStereoAnnulusDesign.h>
+#include <TrkSurfaces/Surface.h>
+#include <algorithm>
+#include <stdexcept>
+
+// SiLocalPosition.h
+#include "ReadoutGeometryBase/SiLocalPosition.h"
 
 
 TrackingHitInputTool::TrackingHitInputTool(const std::string& algname, const std::string& name, const IInterface* ifc) :
@@ -39,6 +60,8 @@ StatusCode TrackingHitInputTool::initialize() {
   ATH_CHECK(m_inputStripClusterContainerKey.initialize() );
   ATH_CHECK(detStore()->retrieve(m_stripId, "SCT_ID"));
   ATH_CHECK(m_stripRDOKey.initialize());
+
+  ATH_CHECK(m_lorentzAngleTool.retrieve());
 
 
   // Setting up maps
@@ -233,9 +256,17 @@ std::vector<hitInfo> TrackingHitInputTool::readHits( const EventContext& eventCo
   // Write out strip cells information in csv file
   std::string cell_csv_filename = "/eos/user/j/jlai/g200/gpu/G-200/traccc-athena/run/strip_hits.csv";
   std::ofstream cell_csv_file(cell_csv_filename);
+  cell_csv_file << std::fixed << std::setprecision(10);
   cell_csv_file << "geometry_id,athena_id,stripID,chipID,offset,ITkStripID,idPhiIndex,idEtaIndex,barrel_ec,layer_disk,side,phi_module,eta_module,"
-   << "local_x,local_y,global_x,global_y,global_z,center0,center1,center2,thickness,width,length,phiPitch,etaPitch,nFiredStrip,waferID\n";
+   << "local_x,local_y,global_x,global_y,global_z,center0,center1,center2,thickness,width,length,phiPitch,etaPitch,nFiredStrip,waferID,lorentzShift,angleShift,"
+   << "strip,row,xPhi,xEta\n";
 
+  std::string annulus_test_filename = "/eos/user/j/jlai/g200/gpu/G-200/traccc-athena/run/annulus_test.csv";
+  std::ofstream annulus_test_file(annulus_test_filename);
+  annulus_test_file << std::fixed << std::setprecision(10);
+  annulus_test_file << "id,rdoId,geometry_id,athena_id,local_x,local_y,side,strip,row,"
+                    << "x_beam,y_beam,rad_beam,phi_beam,x_strip,y_strip,rad_strip,phi_strip,"
+                    << "stereo,waferCentreR,centreR,phiPitch,minR,maxR,lengthBF,m_nStrips0,m_pitch0,type\n";
 
   auto stripRDOHandle = SG::makeHandle(m_stripRDOKey, eventContext);
   for (const InDetRawDataCollection<SCT_RDORawData>* strip_Collection : *stripRDOHandle) {
@@ -247,21 +278,6 @@ std::vector<hitInfo> TrackingHitInputTool::readHits( const EventContext& eventCo
       Amg::Vector2D localPos = sielement->rawLocalPositionOfCell(rdoId);
       InDetDD::SiCellId id = sielement->cellIdFromIdentifier(rdoId);
       int stripID = m_stripId -> strip(rdoId);
-      int side_tmp = m_stripId->side(sielement->identify());
-
-      // Group Size Study
-      // if (m_maxFiredStrips != 0u) {
-      //   unsigned int nFiredStrips = 0u;
-      //   nFiredStrips += stripRawData->getGroupSize();
-      //   // if (nFiredStrips > m_maxFiredStrips && nStrip < 10) {
-      //   if (nStrip < 10) {
-      //     ATH_MSG_INFO("m_maxFiredStrips: " << m_maxFiredStrips << " nFiredStrips: " << nFiredStrips);
-      //   }
-      // }
-
-
-
-
 
       // Each ITK ABC chip reads 128 channels in one row, so we just need to divide the current strip with 128 to get the chip index
       // for the Strip ID, it is the remainder left after dividing by 128
@@ -282,15 +298,86 @@ std::vector<hitInfo> TrackingHitInputTool::readHits( const EventContext& eventCo
       const IdentifierHash Strip_ModuleHash = m_stripId->wafer_hash(Strip_ModuleID);
       const Identifier Strip_ModuleID2 = m_stripId->wafer_id(Strip_ModuleHash + side);
 
+      double shift = m_lorentzAngleTool->getLorentzShift(Strip_ModuleHash+side, eventContext);
+      double angle_shift = m_lorentzAngleTool->getTanLorentzAngle(Strip_ModuleHash+side, eventContext);
 
       ITkStripID += offset * MaxChannelinStripRow;
       uint64_t geometry_id_tmp = m_AtlasToDetrayMap[Strip_ModuleID];
       Amg::Vector3D globalPosition_tmp = sielement->globalPosition(localPos);
+      
+      double localpos_x = localPos.x();
+      double localpos_y = localPos.y();
 
-      // if (m_AtlasToDetrayMap[Strip_ModuleID] == 1536010436653820607) {
-      //   ATH_MSG_INFO("geometry_id: " << m_AtlasToDetrayMap[Strip_ModuleID] << "stripID: " << stripID << " chipID: " << chipID << " offset: " << offset << 
-      //               " ITkStripID: " << ITkStripID << " id.strip(): " << id.strip() << " side: " << side_tmp << 
-      //               " phiIndex(): " << id.phiIndex() << " etaIndex(): " << id.etaIndex()); }
+      InDetDD::SiLocalPosition pos_tmp;
+      int strip = -1, row = -1;
+      // double stereo = -1., waferCentreR = -1., centreR = -1., phiPitch = -1., minR = -1., maxR = -1., lengthBF = -1.;
+
+      if (m_stripId->barrel_ec(rdoId) != 0) { // Annulus
+        const InDetDD::StripStereoAnnulusDesign* annulus_design = dynamic_cast<const InDetDD::StripStereoAnnulusDesign*>(&sielement->design());
+        if (!annulus_design) {
+          ATH_MSG_WARNING("Failed to cast to StripStereoAnnulusDesign");
+          continue;
+        }
+
+        auto [strip_tmp, row_tmp] = annulus_design->getStripRow(id);
+        strip = strip_tmp;
+        row = row_tmp;
+
+
+        pos_tmp = annulus_design->localPositionOfCellPC(id);
+
+        // Save one module information for annulus
+        if (nStrip == 0) {
+          for (int stripIndex = 0; stripIndex < 1024; ++stripIndex) {
+            InDetDD::SiCellId id_tmp(stripIndex, 0);
+
+            Identifier rdoId_tmp = sielement->identifierFromCellId(id_tmp);
+            InDetDD::SiDetectorElement* sielement_tmp = m_SCT_mgr->getDetectorElement(rdoId_tmp);
+            Amg::Vector2D localPos_tmp = sielement_tmp->rawLocalPositionOfCell(rdoId_tmp); // beam frame {x_beam, y_beam}
+            int side_tmp = m_stripId->side(rdoId_tmp);
+
+            auto [strip, row] = annulus_design->getStripRow(id_tmp);
+            InDetDD::SiLocalPosition posxy_beam = annulus_design->localPositionOfCell(id_tmp); // beam frame {x_beam, y_beam}
+            InDetDD::SiLocalPosition posrphi_beam = annulus_design->localPositionOfCellPC(id_tmp); // beam frame {xEta=>rPrime, xPhi=>phi}
+            InDetDD::SiLocalPosition posxy_strip = annulus_design->beamToStrip(posxy_beam); // strip frame {x_strip, y_strip}
+            InDetDD::SiLocalPosition posrphi_strip = annulus_design->beamToStripPC(posrphi_beam); // strip frame {rad_strip, phi_strip}
+
+            int m_nStrips0 = annulus_design->diodesInRow(row);
+            double m_pitch0 = annulus_design->phiPitchPhi(id_tmp);
+            InDetDD::DetectorType type = annulus_design->type();
+
+            double stereo = annulus_design->stereo();
+            double waferCentreR = annulus_design->waferCentreR();
+            double centreR = annulus_design->centreR();
+            double phiPitch = annulus_design->phiPitch(id_tmp);
+            double minR = annulus_design->minR();
+            double maxR = annulus_design->maxR();  
+            double lengthBF = 2. * waferCentreR * std::sin(stereo / 2.);
+
+            annulus_test_file << id_tmp << "," << rdoId_tmp << "," << geometry_id_tmp << "," 
+            << Strip_ModuleID2 << "," << localPos_tmp.x() << "," << localPos_tmp.y() << ","
+            << side_tmp << "," << strip << "," << row << "," 
+            << posxy_beam.xEta() << "," 
+            << posxy_beam.xPhi() << ","
+            << posrphi_beam.xEta() << ","
+            << posrphi_beam.xPhi() << ","
+            << posxy_strip.xEta() << ","
+            << posxy_strip.xPhi() << ","
+            << posrphi_strip.xEta() << ","
+            << posrphi_strip.xPhi() << ","
+            << stereo << ","
+            << waferCentreR << ","
+            << centreR << ","
+            << phiPitch << ","
+            << minR << ","
+            << maxR << ","
+            << lengthBF << ","
+            << m_nStrips0 << ","
+            << m_pitch0 << ","
+            << type << "\n";
+          }
+        }
+      }
 
       cell_csv_file << geometry_id_tmp << ","
           << Strip_ModuleID2 << ","
@@ -305,8 +392,8 @@ std::vector<hitInfo> TrackingHitInputTool::readHits( const EventContext& eventCo
           << m_stripId->side(rdoId) << "," // m_strip->side(sielement->identify()) << ","
           << m_stripId->phi_module(rdoId) << ","
           << m_stripId->eta_module(rdoId) << ","
-          << localPos.x() << ","
-          << localPos.y() << ","
+          << localpos_x << ","
+          << localpos_y << ","
           << globalPosition_tmp.x() << ","
           << globalPosition_tmp.y() << ","
           << globalPosition_tmp.z() << ","
@@ -319,14 +406,21 @@ std::vector<hitInfo> TrackingHitInputTool::readHits( const EventContext& eventCo
           << sielement->phiPitch() << ","
           << sielement->etaPitch() << ","
           << nFiredStrip << "," 
-          << Strip_ModuleHash+side << "\n";
+          << Strip_ModuleHash+side << "," 
+          << shift << ","
+          << angle_shift << ","
+          << strip << ","
+          << row << ","
+          << pos_tmp.xPhi() << ","
+          << pos_tmp.xEta() << "\n";
 
 
       
 
       if(m_stripId->side(sielement->identify()) == 1) {continue;} // only side 0
 
-
+      // Annulus 
+      
 
 
       hitInfo thishit;
@@ -365,6 +459,42 @@ std::vector<hitInfo> TrackingHitInputTool::readHits( const EventContext& eventCo
   ATH_MSG_INFO("Read " << nPix << " pixel hits");
   ATH_MSG_INFO("Read " << nStrip << " strip hits");
   cell_csv_file.close();
+
+
+  // ATH_MSG_INFO("Start performing Lorentz Shift");
+  // std::string measurement_filename = "/eos/user/j/jlai/Traccc/traccc/data/output/measurements.csv";
+  // std::ifstream file(measurement_filename);
+  // std::string line; 
+
+  // std::getline(file, line); // Skip the header line
+  // std::vector<float> local0_values;
+  // std::vector<float> local1_values;
+
+  // while (std::getline(file, line)) {
+  //   std::stringstream ss(line);
+  //   std::string token;
+  //   int col_idx = 0;
+  //   float local0 = 0.0, local1 = 0.0;
+
+  //   while (std::getline(ss, token, '\t')) {
+  //     if (col_idx == 0) local0 = std::stof(token);
+  //     if (col_idx == 1) local1 = std::stof(token);
+  //     col_idx++;
+  //   }
+
+  //   local0_values.push_back(local0);
+  //   local1_values.push_back(local1);
+  // }
+
+  // // Print the first 5 values of local0 and local1
+  // for (size_t i = 0; i < std::min(local0_values.size(), size_t(5)); ++i) {
+  //       std::cout << "measurement.csv: "
+  //                 << "  local0: " << local0_values[i]
+  //                 << ", local1: " << local1_values[i] << std::endl;
+  // }
+
+  // Shift
+  // double shift = m_lorentzAngleTool->getLorentzAngle(Strip_ModuleHash, eventContext);
 
 
   // return pixel_hits;

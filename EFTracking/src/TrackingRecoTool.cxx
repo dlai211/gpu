@@ -820,6 +820,7 @@ void TrackingRecoTool::make_test_data(int m_n_event,std::vector<clusterInfo>& de
     hitfile << "particle_id,geometry_id,tx,ty,tz,tt,tpx,tpy,tpz,te,deltapx,deltapy,deltapz,deltae,index" << "\n";
 
     std::ofstream measfile;
+    measfile << std::fixed << std::setprecision(10);
     measfile.open("event"+padded+"-measurements.csv");
     measfile << "measurement_id,geometry_id,local_key,local0,local1,phi,theta,time,var_local0,var_local1,var_phi,var_theta,var_time" << "\n";
 

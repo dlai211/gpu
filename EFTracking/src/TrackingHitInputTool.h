@@ -60,6 +60,8 @@ class TrackingHitInputTool : public extends<AthAlgTool, ITrackingHitInputTool> {
         //  std::map<Identifier, std::vector<uint64_t>> m_AtlasToDetrayMap;
          std::map<std::uint64_t, Identifier> m_DetrayToAtlasMap;
 
+         ToolHandle<ISiLorentzAngleTool> m_lorentzAngleTool {this, "LorentzAngleTool", "SiLorentzAngleTool/SCTLorentzAngleTool", "Tool to retrieve Lorentz angle of SCT"};
+
          Gaudi::Property<unsigned int> m_maxFiredStrips {this, "maxFiredStrips", 384u,
           "Threshold of number of fired strips per wafer. 0 disables the per-wafer cut."};
         

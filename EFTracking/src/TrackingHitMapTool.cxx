@@ -32,6 +32,7 @@
 #include <string>
 #include <cmath>
 #include <nlohmann/json.hpp>  // JSON library
+#include <iomanip>
 
 // Inside Athena https://acode-browser1.usatlas.bnl.gov/lxr/source/athena/Tracking/Acts/ActsDataPreparation/src/StripClusteringTool.cxx
 #include "InDetRawData/SCT3_RawData.h"
@@ -200,7 +201,7 @@ void TrackingHitMapTool::createAthenaMap() {
     ATH_MSG_FATAL("Failed to open CSV file for writing: " << map_csv_filename);
     return;
   }
-  map_csv_file << "Module_ID,Barrel_ec,Width,Length,Cell,StripPitch,Shift,Layer_Disk,Phi,Eta,Side,Wafer_Hash,center0,center1,center2\n";
+  map_csv_file << "Module_ID,Barrel_ec,Width,Length,Cell,StripPitch,Layer_Disk,Phi,Eta,Side,Wafer_Hash,center0,center1,center2\n";
 
   // Open CSV file for writing (BarrelModuleSideDesign)
   std::string barrel_csv_filename = "/eos/user/j/jlai/g200/gpu/G-200/traccc-athena/run/barrel_module.csv";
@@ -209,15 +210,16 @@ void TrackingHitMapTool::createAthenaMap() {
     ATH_MSG_FATAL("Failed to open CSV file for writing: " << barrel_csv_filename);
     return;
   }
-  barrel_csv_file << "width,length,cells,shift,stripPitch,stripLength,phiStripPatternCentre,etaStripPatternCentre,phiPitch,etaPitch,thickness,barrel_ec,layer_disk,phi_module,eta_module\n";
+  barrel_csv_file << "width,length,cells,stripPitch,stripLength,phiStripPatternCentre,etaStripPatternCentre,phiPitch,etaPitch,barrel_ec,layer_disk,phi_module,eta_module\n";
   
   std::string annulus_csv_filename = "/eos/user/j/jlai/g200/gpu/G-200/traccc-athena/run/annulus_module.csv";
   std::ofstream annulus_csv_file(annulus_csv_filename);
+  annulus_csv_file << std::fixed << std::setprecision(10);
   if (!annulus_csv_file.is_open()) {
     ATH_MSG_FATAL("Failed to open CSV file for writing: " << annulus_csv_filename);
     return;
   }
-  annulus_csv_file << "width,length,cells,shift,stripPitch,thickness,barrel_ec,layer_disk,phi_module,eta_module\n";
+  annulus_csv_file << "athena_id,theta,radius,m_nStrips0,m_stereo,m_lengthBF,m_waferCentreR,m_pitch_row,phiPitch\n";
 
   SG::ReadCondHandle<InDetDD::SiDetectorElementCollection> stripDetEleHandle(m_stripDetEleCollKey);
   const InDetDD::SiDetectorElementCollection* strip_elements(*stripDetEleHandle);
@@ -237,11 +239,11 @@ void TrackingHitMapTool::createAthenaMap() {
     float eta_module = m_stripId->eta_module(element->identify());
     float phi_module = m_stripId->phi_module(element->identify());
     int barrel_ec = m_stripId->barrel_ec(element->identify());
-    float shift = 0.0;
-    float stripPitch = 0.0;
-    float cell = 0.0;
-    float length = 0.0;
-    float width = 0.0;
+    double stripPitch = 0.0;
+    int cell = 0.0;
+    double length = 0.0;
+    double width = 0.0;
+
 
     if (m_ModuleList.find(Strip_ModuleID) == m_ModuleList.end()){
 
@@ -255,7 +257,7 @@ void TrackingHitMapTool::createAthenaMap() {
       ATH_MSG_VERBOSE( "Strip module " << nStrip );
 
       moduleInfo thismod;
-      // I don't know if pixel need this information.
+
       thismod.center0 = 0.0;
       thismod.center1 = 0.0;
       thismod.center2 = 0.0;
@@ -265,13 +267,12 @@ void TrackingHitMapTool::createAthenaMap() {
         ++nbar;
         const InDetDD::SCT_BarrelModuleSideDesign* s_design = (static_cast<const InDetDD::SCT_BarrelModuleSideDesign*>(&element->design()));
         auto boundsType = element->bounds().type();
-        thismod.thickness = element->thickness();
         thismod.pixel = false; 
         thismod.side = side; // store side information
-
+      
         if (nbar <= 15) {
           ATH_MSG_INFO("barrel: " << m_stripId->barrel_ec(Strip_ModuleID) << " Module ID: " << Strip_ModuleID << 
-          ", Side: " << side << ", Side: " << thismod.side << " Thickness: " << thismod.thickness);
+          ", Side: " << side << ", Side: " << thismod.side);
         }  
 
 
@@ -282,21 +283,18 @@ void TrackingHitMapTool::createAthenaMap() {
             thismod.module_width = s_design->width();
             thismod.module_length = s_design->length();
             thismod.rows = s_design->cells(); // same as s_design->width() / s_design->stripPitch();
-            thismod.shift = s_design->shift();
 
 
             // To save in df_map csv file
             width = s_design->width();
             length = s_design->length();
             cell = s_design->cells();
-            shift = s_design->shift();
             stripPitch = s_design->stripPitch();
 
             if (nRect1 < 10) {
               ATH_MSG_INFO(" nRect1, s_design->width(): " << s_design->width() << 
                            " length(): " << s_design->length() <<
                            " cells(): " << s_design->cells() <<
-                           " shift(): " << s_design->shift() <<
                            " stripPitch(): " << s_design->stripPitch() << "\n" <<
                            " stripLength(): " << s_design->stripLength() <<
                            " phiStripPatternCentre(): " << s_design->phiStripPatternCentre() <<
@@ -315,14 +313,12 @@ void TrackingHitMapTool::createAthenaMap() {
             barrel_csv_file << s_design->width() << ","
             << s_design->length() << ","
             << s_design->cells() << ","
-            << s_design->shift() << ","
             << s_design->stripPitch() << ","
             << s_design->stripLength() << ","
             << s_design->phiStripPatternCentre() << ","
             << s_design->etaStripPatternCentre() << ","
             << s_design->phiPitch() << ","
             << s_design->etaPitch() << ","
-            << thismod.thickness << ","
             << barrel_ec << ","
             << layer_disk << ","
             << phi_module << ","
@@ -332,7 +328,6 @@ void TrackingHitMapTool::createAthenaMap() {
               ATH_MSG_INFO(" nRect1, problem, width(): " << s_design->width() << 
               " length(): " << s_design->length() <<
               " cells(): " << s_design->cells() <<
-              " shift(): " << s_design->shift() <<
               " stripPitch(): " << s_design->stripPitch() << 
               " stripLength(): " << s_design->stripLength() );
             }
@@ -360,15 +355,43 @@ void TrackingHitMapTool::createAthenaMap() {
         }
       } else {
         ++nnonbar;
+        const InDetDD::StripStereoAnnulusDesign* annulus_design = (static_cast<const InDetDD::StripStereoAnnulusDesign*>(&element->design()));
+        double m_stereo = annulus_design->stereo();
+        double m_waferCentreR = annulus_design->waferCentreR();
+        double m_lengthBF = 2. * m_waferCentreR * std::sin(m_stereo / 2.);
+
+        // double annulus_minR = annulus_design->minR();
+        // double annulus_maxR = annulus_design->maxR();
+        // double annulus_phiWidth = annulus_design->phiWidth(); 
+
+        const InDetDD::SiCellId annulus_id = element->cellIdFromIdentifier(Strip_ModuleID);
+        double phiPitch = annulus_design->phiPitch(annulus_id);
+        double m_pitch_row = annulus_design->phiPitchPhi(annulus_id);
+        // double radius = phiPitch / m_pitch_row;
+        double radius = annulus_design->centreR();
+
+        int m_nStrips0 = annulus_design->diodesInRow(0.);
+        double max_phi = (m_nStrips0) * m_pitch_row;
+        thismod.module_width = max_phi;
+        thismod.module_length = radius;
+        thismod.rows = m_nStrips0;
+  
+        // To save in df_map csv file
+        width = max_phi;
+        length = radius;
+        cell = m_nStrips0;
+
+
         const InDetDD::SCT_ForwardModuleSideDesign* s_design = (static_cast<const InDetDD::SCT_ForwardModuleSideDesign*>(&element->design()));
         auto boundsType = element->bounds().type();
-        thismod.thickness = element->thickness();
         thismod.pixel = false;
         thismod.side = side; 
 
+        // Testing Forward Module
+
         if (nnonbar <= 15) {
           ATH_MSG_INFO("barrel: " << m_stripId->barrel_ec(Strip_ModuleID) << " Module ID: " << Strip_ModuleID << 
-          ", Side: " << side << ", Side: " << thismod.side << " Thickness: " << thismod.thickness);
+          ", Side: " << side << ", Side: " << thismod.side);
         }  
 
         if (boundsType == Trk::SurfaceBounds::Rectangle) {
@@ -392,47 +415,20 @@ void TrackingHitMapTool::createAthenaMap() {
         if (boundsType == Trk::SurfaceBounds::Annulus)   {
             ++nAnnu2;
             // thismod.module_width = s_design->width();
-            thismod.module_width = s_design->width();
-            thismod.module_length = s_design->length();
-            int row_tmp = s_design->width()/s_design->stripPitch();
-            thismod.rows = s_design->cells();
-            thismod.shift = s_design->shift();
-
-            // To save in df_map csv file
-            width = s_design->width();
-            length = s_design->length();
-            cell = s_design->cells();
-            shift = s_design->shift();
+            // thismod.module_length = s_design->length();
+            // thismod.rows = s_design->cells();
             stripPitch = s_design->stripPitch();
 
 
-            if (nAnnu2 < 10) {
-              ATH_MSG_INFO(" nAnnu2, s_design->width(): " << s_design->width() << 
-                           " nAnnu2, s_design->length(): " << s_design->length() <<
-                           " nAnnu2, s_design->cells(): " << s_design->cells() <<
-                           " nAnnu2, s_design->shift(): " << s_design->shift() <<
-                           " nAnnu2, s_design->stripPitch(): " << s_design->stripPitch());
-            }
-
-            annulus_csv_file << s_design->width() << ","
-            << s_design->length() << ","
-            << s_design->cells() << ","
-            << s_design->shift() << ","
-            << s_design->stripPitch() << ","
-            << thismod.thickness << ","
-            << barrel_ec << ","
-            << layer_disk << ","
-            << phi_module << ","
-            << eta_module << "\n";
-
-
-            // if (s_design->cells() != s_design->width() / s_design->stripPitch()) {
-            //   ATH_MSG_INFO(" nAnnu2, problem, width(): " << s_design->width() << 
-            //   " length(): " << s_design->length() <<
-            //   " cells(): " << s_design->cells() <<
-            //   " shift(): " << s_design->shift() <<
-            //   " stripPitch(): " << s_design->stripPitch());
-            // }
+            annulus_csv_file << Strip_ModuleID << "," 
+            << max_phi << ","
+            << radius << ","
+            << m_nStrips0 << ","
+            << m_stereo << ","  
+            << m_lengthBF << ","
+            << m_waferCentreR << ","
+            << m_pitch_row << ","
+            << phiPitch << "\n";
         }
           
       }
@@ -461,7 +457,6 @@ void TrackingHitMapTool::createAthenaMap() {
       << length << ","
       << cell << ","
       << stripPitch << ","
-      << shift << ","
       << layer_disk << ","
       << phi_module << ","
       << eta_module << ","
@@ -503,7 +498,6 @@ void TrackingHitMapTool::createAthenaMap() {
         moduleInfo thismod;
         const InDetDD::PixelModuleDesign *p_design = static_cast<const InDetDD::PixelModuleDesign*>(&element->design());
         auto boundsType = module->bounds().type();
-        thismod.thickness = module->thickness();
         thismod.pixel = true;
         thismod.side = 2; // for pixel
 
@@ -513,7 +507,6 @@ void TrackingHitMapTool::createAthenaMap() {
           thismod.module_length = p_design->length();
           thismod.rows = p_design->rows();
           thismod.columns = p_design->columns();
-          thismod.shift = 0;
 
         }
         if (boundsType == Trk::SurfaceBounds::Trapezoid) {
@@ -710,9 +703,9 @@ void TrackingHitMapTool::fill_digi_info(){
       int sensor = std::stoi(parts[2].substr(4));    // Remove "sen="
 
       // Match the correct athena_id
-      float placement_x = sf.transform(context).translation()[0];
-      float placement_y = sf.transform(context).translation()[1];
-      float placement_z = sf.transform(context).translation()[2];
+      double placement_x = sf.transform(context).translation()[0];
+      double placement_y = sf.transform(context).translation()[1];
+      double placement_z = sf.transform(context).translation()[2];
 
 
       // Make the correct athena_id
@@ -741,7 +734,8 @@ void TrackingHitMapTool::fill_digi_info(){
       int side = thismod.side;
 
 
-      if (thismod.pixel) {         
+      if (thismod.pixel) {     
+        pcount++;
         json_output["entries"].push_back({
           {"layer", layer},
           {"sensitive", sensor},
@@ -774,19 +768,10 @@ void TrackingHitMapTool::fill_digi_info(){
 
       }
       else {
+        scount++;
         if (volume == 22 || volume == 24) { // annulus
 
           // Convert x, y to radius, angle
-          // thismod.module_width = arc_length
-          float x_tmp = thismod.center0;
-          float y_tmp = thismod.center1;
-          float radius = std::sqrt(x_tmp * x_tmp + y_tmp * y_tmp);
-
-          float half_pi = M_PI / 2;
-          float dtheta = thismod.module_width / radius;
-          float theta_min = half_pi + 0.5 * dtheta;
-          float theta_max = half_pi - 0.5 * dtheta;
-
           json_output["entries"].push_back({
             {"layer", layer},
             {"sensitive", sensor},
@@ -797,16 +782,16 @@ void TrackingHitMapTool::fill_digi_info(){
                         {"binningdata", {
                             {
                               {"bins", thismod.rows},
-                              {"max", theta_max},
-                              {"min", theta_min},
-                              {"option", "open"}, // change back to open
+                              {"max", thismod.module_width * 0.5}, // max theta
+                              {"min", -thismod.module_width * 0.5}, // min theta
+                              {"option", "open"},
                               {"type", "equidistant"},
                               {"value", "binX"}
                           },
                           {
                               {"bins", 1}, // for strip, bin must be 1
-                              {"max", radius+0.1},
-                              {"min", radius-0.1},
+                              {"max", thismod.module_length+0.1}, // radius
+                              {"min", thismod.module_length-0.1}, // radius
                               {"option", "open"},
                               {"type", "equidistant"},
                               {"value", "binY"}
