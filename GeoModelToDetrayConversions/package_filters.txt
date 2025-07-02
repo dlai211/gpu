@@ -1,0 +1,20 @@
++ .*Acts.*
++ .*InnerDetector/InDetRecAlgs/InDetPriVxFinder.*
++ .*InnerDetector/InDetRecTools/InDetRecToolInterfaces.*
++ .*MuonSpectrometer/MuonPhaseII/MuonDetDescr/MuonReadoutGeometryR4.*
++ .*MuonGeoModelTestR4.*
++ .*MuonGeoModelR4.*
++ .*Event/DumpEventDataToJSON.*
+
++ .*AtlasTest/CITest.*
++ .*xAODTracking
++ .*Tracking/TrkExtrapolation/TrkExAlgs.*
++ .*WorkflowTestRunner.*
+
++ InnerDetector/InDetConfig
++ Event/xAOD/xAODInDetMeasurement
++ Event/xAOD/xAODInDetMeasurementAthenaPool
++ Event/xAOD/xAODMeasurementBase
++ Trigger/EFTracking/GeoModelConversion
+
+- .*

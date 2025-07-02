@@ -1,0 +1,25 @@
+{
+    "TrkAnaEF_TM" : {
+        "enabled" : true,
+        "TestType"  : "Offline",
+        "RefType"   : "Truth",
+        "OfflineTrkKey": "TracccTrackParticles",
+        "plotResolutions": true,
+        "MatchingType"  : "TruthMatch",
+        "doClusterValidation"  : true,
+        "plotTechnicalEfficiencies": true,
+        "PixelClusterKey"  : "xAODPixelClustersFromTracccCluster",
+        "StripClusterKey"  : "xAODStripClustersFromTracccCluster",
+        "OfflineQualityWP": "EFTracking"
+    },
+    "TrkAnaEF_Seed_TM" : {
+        "enabled" : true,
+        "TestType"  : "Offline",
+        "RefType"   : "Truth",
+        "OfflineTrkKey": "TracccSeedTrackParticles",
+        "MatchingType"  : "TruthMatch",
+        "doClusterValidation"  : false,
+        "plotTechnicalEfficiencies": true,
+        "OfflineQualityWP": "EFTracking"
+    }
+}
