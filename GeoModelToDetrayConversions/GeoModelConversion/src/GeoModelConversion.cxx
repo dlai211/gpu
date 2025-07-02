@@ -70,7 +70,8 @@ void GeoModelConversion::build_detray_detector(){
 	auto context = Gaudi::Hive::currentContext();
 	Acts::GeometryContext geoContext = m_trackingGeometryTool->getGeometryContext(context).context();
 
-	std::string sqliteDbName = "/eos/user/n/nribaric/ITk_data/ITk_geometry_data/ITk_SQLite_acts.db";
+	// std::string sqliteDbName = "/eos/user/n/nribaric/ITk_data/ITk_geometry_data/ITk_SQLite_acts.db";
+	std::string sqliteDbName = "/eos/project/a/atlas-eftracking/GPU/ITk_data/ITk_geometry_data/ITk_SQLite_acts.db";
 	auto gmTree = Acts::GeoModelReader::readFromDb(sqliteDbName);
 
 	auto gmBlueprintConfig = Acts::GeoModelBlueprintCreater::Config();
@@ -163,11 +164,7 @@ void GeoModelConversion::build_geometry_maps(){
 			ATH_MSG_INFO("Not a SiDetElement " << geo_id);
 		}
 
-		if(m_actsToGeoModel.find(geo_id) != m_actsToGeoModel.end()){
-			ATH_MSG_INFO("We already have this ACTS ID in map: " << geo_id << " , " << athenaID);
-		}
 		m_actsToGeoModel[geo_id] = athenaID;
-
 
 	}
 
@@ -213,7 +210,6 @@ void GeoModelConversion::build_geometry_maps(){
 		}
 
 	}
-
 	AtoA_map_file.close();
 	AtoD_map_file.close();
 
@@ -248,7 +244,6 @@ void GeoModelConversion::createAthenaMap() {
 	int nTrap2 = 0;
 	int nAnnu2 = 0;
 
-	int scount = 0;
 	// Saving digi config file
 	nlohmann::json json_output;
 	json_output["acts-geometry-hierarchy-map"] = {
@@ -268,35 +263,22 @@ void GeoModelConversion::createAthenaMap() {
 		const IdentifierHash Strip_ModuleHash = m_stripId->wafer_hash(strip_moduleID);
 
 		// Extract the correct Strip_ModuleID
-		int side = m_stripId->side(element->identify());
+		int side = m_stripId->side(element->identify()); // (0 = inner, 1 = outer)
 		const Identifier Strip_ModuleID = m_stripId->wafer_id(Strip_ModuleHash + side);
-
-		// Extract side information (0 = inner, 1 = outer)
-		int layer_disk = m_stripId->layer_disk(element->identify());
-		float eta_module = m_stripId->eta_module(element->identify());
-		float phi_module = m_stripId->phi_module(element->identify());
-		int barrel_ec = m_stripId->barrel_ec(element->identify());
-		double stripPitch = 0.0;
-		int cell = 0.0;
-		double length = 0.0;
-		double width = 0.0;
-
-		if(scount < 10){
-			ATH_MSG_INFO("Strip side: " << side);
-			ATH_MSG_INFO("Strip module ID: " << Strip_ModuleID << ",  " << strip_moduleID);
-			ATH_MSG_INFO("Strip B/EC: " << barrel_ec << ", layer: " << layer_disk << ", eta: " << eta_module << ", phi: " << phi_module);
-			scount++;
-		}
+		
 
 		++nStrip;
 		ATH_MSG_VERBOSE( "Strip module " << nStrip );
 		moduleInfo thismod;
 
-		thismod.center0 = 0.0;
-		thismod.center1 = 0.0;
-		thismod.center2 = 0.0;
+		std::vector<const Trk::Surface*> module_surfaces = element->surfaces();
 
-		if (m_stripId->barrel_ec(Strip_ModuleID) == 0) {
+		thismod.center0 = element->center()[0];
+		thismod.center1 = element->center()[1];
+		thismod.center2 = element->center()[2];
+
+
+		if (m_stripId->barrel_ec(Strip_ModuleID) == 0) { // Barrel modules
 			++nbar;
 			const InDetDD::SCT_BarrelModuleSideDesign* s_design = (static_cast<const InDetDD::SCT_BarrelModuleSideDesign*>(&element->design()));
 			auto boundsType = element->bounds().type();
@@ -316,38 +298,6 @@ void GeoModelConversion::createAthenaMap() {
 				thismod.module_width = s_design->width();
 				thismod.module_length = s_design->length();
 				thismod.rows = s_design->cells(); // same as s_design->width() / s_design->stripPitch();
-
-				// To save in df_map csv file
-				width = s_design->width();
-				length = s_design->length();
-				cell = s_design->cells();
-				stripPitch = s_design->stripPitch();
-
-				if (nRect1 < 10) {
-					ATH_MSG_INFO(" nRect1, s_design->width(): " << s_design->width() <<
-								" length(): " << s_design->length() <<
-								" cells(): " << s_design->cells() <<
-								" stripPitch(): " << s_design->stripPitch() << "\n" <<
-								" stripLength(): " << s_design->stripLength() <<
-								" phiStripPatternCentre(): " << s_design->phiStripPatternCentre() <<
-								" etaStripPatternCentre(): " << s_design->etaStripPatternCentre() <<
-								" phiPitch(): " << s_design->phiPitch() <<
-								" etaPitch(): " << s_design->etaPitch() );
-				}
-
-				// Extract side information (0 = inner, 1 = outer)
-				int layer_disk = m_stripId->layer_disk(element->identify());
-				float eta_module = m_stripId->eta_module(element->identify());
-				float phi_module = m_stripId->phi_module(element->identify());
-				int barrel_ec = m_stripId->barrel_ec(element->identify());
-
-				if (s_design->cells() != s_design->width() / s_design->stripPitch()) {
-					ATH_MSG_INFO(" nRect1, problem, width(): " << s_design->width() <<
-					" length(): " << s_design->length() <<
-					" cells(): " << s_design->cells() <<
-					" stripPitch(): " << s_design->stripPitch() <<
-					" stripLength(): " << s_design->stripLength() );
-				}
 
         	}
 			if (boundsType == Trk::SurfaceBounds::Trapezoid) {
@@ -371,8 +321,7 @@ void GeoModelConversion::createAthenaMap() {
 				ATH_MSG_DEBUG("lenght / pitch " << s_design->length() << " / " << s_design->stripPitch());
 			}
 
-		} else { // EC modules
-
+		} else { // EndCap modules
 			++nnonbar;
 			const InDetDD::StripStereoAnnulusDesign* annulus_design = (static_cast<const InDetDD::StripStereoAnnulusDesign*>(&element->design()));
 			double m_stereo = annulus_design->stereo();
@@ -421,24 +370,14 @@ void GeoModelConversion::createAthenaMap() {
 			}
 			if (boundsType == Trk::SurfaceBounds::Annulus)   {
 				++nAnnu2;
-				stripPitch = s_design->stripPitch();
+				double stripPitch = s_design->stripPitch();
 
 			}
 
 		}
 
-		const InDetDD::SiDetectorElement *module = strip_elements->getDetectorElement(Strip_ModuleHash+side);
-		std::vector<const Trk::Surface*> module_surfaces = module->surfaces();
-
-		thismod.center0 = module->center()[0];
-		thismod.center1 = module->center()[1];
-		thismod.center2 = module->center()[2];
-
 		m_atlasModuleInfo[Strip_ModuleID] = thismod;
 
-		if (nStrip < 10) {
-			ATH_MSG_INFO( "Human Readable ID: " << Strip_ModuleID << " center2: " << thismod.center2 << " surface: " << module->surfaces() << " wafer_id: " << m_stripId->wafer_id(Strip_ModuleHash+side));
-		}
 	}
 
 	SG::ReadCondHandle<InDetDD::SiDetectorElementCollection> pixelDetEleHandle(m_pixelDetEleCollKey);
@@ -575,22 +514,13 @@ void GeoModelConversion::fill_digi_info(){
       }
 
       int volume = std::stoi(parts[0].substr(4));    // Remove "vol="
-      int layer = std::stoi(parts[1].substr(4));     // Remove "lay="
+      int layer = std::stoi(parts[1].substr(4));    // Remove "lay="
       int sensor = std::stoi(parts[2].substr(4));    // Remove "sen="
 
       // Match the correct athena_id
       double placement_x = sf.transform(context).translation()[0];
       double placement_y = sf.transform(context).translation()[1];
       double placement_z = sf.transform(context).translation()[2];
-
-
-      // Make the correct athena_id
-      if (volume == 22 || volume == 23 || volume == 24) {
-        if (sensor % 2 == 0) { // even
-          athena_id = Identifier(athena_id.get_compact() | 0x0008000000000);
-          if(scount < 10){ATH_MSG_INFO(" athena_id even side: " << athena_id);}
-        }
-      }
 
 
       if(!m_atlasModuleInfo.contains(athena_id)){
@@ -629,7 +559,7 @@ void GeoModelConversion::fill_digi_info(){
                               {"bins", thismod.rows},
                               {"max", thismod.module_width * 0.5},
                               {"min", -thismod.module_width * 0.5},
-                              {"option", "open"}, // change back to open
+                              {"option", "open"},
                               {"type", "equidistant"},
                               {"value", "binX"}
                           },
@@ -697,7 +627,7 @@ void GeoModelConversion::fill_digi_info(){
                                 {"bins", thismod.rows},
                                 {"max", thismod.module_width * 0.5},
                                 {"min", -thismod.module_width * 0.5},
-                                {"option", "open"}, // change back to open
+                                {"option", "open"},
                                 {"type", "equidistant"},
                                 {"value", "binX"}
                             },

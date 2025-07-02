@@ -3,8 +3,10 @@
 #include "StoreGate/DataHandle.h"
 
 // ACTS includes
-#include "ActsGeometryInterfaces/IActsTrackingGeometryTool.h"
+//#include "ActsGeometryInterfaces/IActsTrackingGeometryTool.h"
 //#include "ActsEventCnv/IActsToTrkConverterTool.h"
+#include "ActsGeometryInterfaces/IActsTrackingGeometrySvc.h"
+#include "ActsGeometryInterfaces/ITrackingGeometryTool.h"
 #include "ActsEvent/TrackContainerHandlesHelper.h"
 #include "Acts/Detector/Blueprint.hpp"
 #include "Acts/Detector/DetectorBuilder.hpp"
@@ -28,7 +30,7 @@
 #include "PixelReadoutGeometry/PixelModuleDesign.h"
 #include "SCT_ReadoutGeometry/SCT_BarrelModuleSideDesign.h"
 #include "SCT_ReadoutGeometry/SCT_ForwardModuleSideDesign.h"
-#include "SCT_ReadoutGeometry/StripStereoAnnulusDesign.h"
+#include "SCT_ReadoutGeometry/StripStereoAnnulusDesign.h" 
 
 
 #include "InDetIdentifier/PixelID.h"
@@ -45,14 +47,14 @@ namespace Acts{
 
 struct moduleInfo {
   bool pixel;
-  float module_width;
-  float module_length;
-  float center0;
-  float center1;
-  float center2;
+  double module_width;
+  double module_length;
+  double center0;
+  double center1;
+  double center2;
   int columns;
   int rows;
-  float thickness;
+  double thickness;
   int side;
 };
 
@@ -91,7 +93,8 @@ class GeoModelConversion : public AthAlgorithm
 		std::map<Acts::GeometryIdentifier, Identifier> m_actsToGeoModel;
 		std::map<int,std::shared_ptr<Acts::Surface>> m_mapSurfaceToAtlasID;
 
-		ToolHandle<IActsTrackingGeometryTool> m_trackingGeometryTool{this, "TrackingGeometryTool","ActsTrackingGeometryTool"};
+		PublicToolHandle<ActsTrk::ITrackingGeometryTool> m_trackingGeometryTool{this, "TrackingGeometryTool", "ActsTrackingGeometryTool"};
+
         std::shared_ptr<const Acts::TrackingGeometry> m_trackingGeometry;
         std::vector<std::shared_ptr<Acts::Surface>> m_surfaces;
 		std::vector<std::shared_ptr<Acts::Surface>> m_allsurfaces;
