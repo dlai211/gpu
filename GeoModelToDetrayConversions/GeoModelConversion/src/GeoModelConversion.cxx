@@ -244,6 +244,9 @@ void GeoModelConversion::createAthenaMap() {
 	int nTrap2 = 0;
 	int nAnnu2 = 0;
 
+	// std::ofstream out("module_info.csv");  // saved strip module to csv to test 
+	// out << "module_hash,module_id,center0,center1,center2,module_center,module_width,module_length,rows,side\n";
+
 	// Saving digi config file
 	nlohmann::json json_output;
 	json_output["acts-geometry-hierarchy-map"] = {
@@ -265,7 +268,7 @@ void GeoModelConversion::createAthenaMap() {
 		// Extract the correct Strip_ModuleID
 		int side = m_stripId->side(element->identify()); // (0 = inner, 1 = outer)
 		const Identifier Strip_ModuleID = m_stripId->wafer_id(Strip_ModuleHash + side);
-		
+
 
 		++nStrip;
 		ATH_MSG_VERBOSE( "Strip module " << nStrip );
@@ -277,9 +280,14 @@ void GeoModelConversion::createAthenaMap() {
 		thismod.center1 = element->center()[1];
 		thismod.center2 = element->center()[2];
 
+		thismod.module_center = 0;
 
 		if (m_stripId->barrel_ec(Strip_ModuleID) == 0) { // Barrel modules
 			++nbar;
+			// Adding LorentShift for Barrel modules
+			auto context = Gaudi::Hive::currentContext();
+			thismod.module_center = m_lorentzAngleTool->getLorentzShift(Strip_ModuleHash + side, context);
+
 			const InDetDD::SCT_BarrelModuleSideDesign* s_design = (static_cast<const InDetDD::SCT_BarrelModuleSideDesign*>(&element->design()));
 			auto boundsType = element->bounds().type();
 			thismod.pixel = false;
@@ -378,7 +386,19 @@ void GeoModelConversion::createAthenaMap() {
 
 		m_atlasModuleInfo[Strip_ModuleID] = thismod;
 
-	}
+		// out << Strip_ModuleHash + side << ","
+        // << Strip_ModuleID << ","
+        // << thismod.center0 << ","
+        // << thismod.center1 << ","
+        // << thismod.center2 << ","
+        // << thismod.module_center << ","
+        // << thismod.module_width << ","
+        // << thismod.module_length << ","
+        // << thismod.rows << ","
+        // << thismod.side << "\n";
+
+	} 
+	// out.close();
 
 	SG::ReadCondHandle<InDetDD::SiDetectorElementCollection> pixelDetEleHandle(m_pixelDetEleCollKey);
 	const InDetDD::SiDetectorElementCollection* pixel_elements(*pixelDetEleHandle);
@@ -460,7 +480,7 @@ void GeoModelConversion::createAthenaMap() {
 void GeoModelConversion::fill_digi_info(){
 
     ATH_MSG_DEBUG("Filling detector description");
-    typename detector_t::geometry_context context{};
+    typename detector_t::geometry_context detrayContext{};
 
 
     int pcount = 0;
@@ -518,9 +538,9 @@ void GeoModelConversion::fill_digi_info(){
       int sensor = std::stoi(parts[2].substr(4));    // Remove "sen="
 
       // Match the correct athena_id
-      double placement_x = sf.transform(context).translation()[0];
-      double placement_y = sf.transform(context).translation()[1];
-      double placement_z = sf.transform(context).translation()[2];
+      double placement_x = sf.transform(detrayContext).translation()[0];
+      double placement_y = sf.transform(detrayContext).translation()[1];
+      double placement_z = sf.transform(detrayContext).translation()[2];
 
 
       if(!m_atlasModuleInfo.contains(athena_id)){
@@ -625,8 +645,8 @@ void GeoModelConversion::fill_digi_info(){
                         {"binningdata", {
                             {
                                 {"bins", thismod.rows},
-                                {"max", thismod.module_width * 0.5},
-                                {"min", -thismod.module_width * 0.5},
+                                {"max", thismod.module_width * 0.5 + thismod.module_center},
+                                {"min", -thismod.module_width * 0.5 + thismod.module_center},
                                 {"option", "open"},
                                 {"type", "equidistant"},
                                 {"value", "binX"}

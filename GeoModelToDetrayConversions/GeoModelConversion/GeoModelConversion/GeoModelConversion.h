@@ -49,6 +49,7 @@ struct moduleInfo {
   bool pixel;
   double module_width;
   double module_length;
+  double module_center;
   double center0;
   double center1;
   double center2;
@@ -94,6 +95,7 @@ class GeoModelConversion : public AthAlgorithm
 		std::map<int,std::shared_ptr<Acts::Surface>> m_mapSurfaceToAtlasID;
 
 		PublicToolHandle<ActsTrk::ITrackingGeometryTool> m_trackingGeometryTool{this, "TrackingGeometryTool", "ActsTrackingGeometryTool"};
+        ToolHandle<ISiLorentzAngleTool> m_lorentzAngleTool {this, "LorentzAngleTool", "SiLorentzAngleTool/SCTLorentzAngleTool", "Tool to retrieve Lorentz angle of SCT"};
 
         std::shared_ptr<const Acts::TrackingGeometry> m_trackingGeometry;
         std::vector<std::shared_ptr<Acts::Surface>> m_surfaces;
