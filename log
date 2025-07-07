@@ -1,0 +1,159 @@
+-- Setting up LCG release "LCG_107a_ATLAS_13" for platform: x86_64-el9-gcc14-opt
+-- found Acts version 41.0.0 commit GITDIR-NO-dirty
+-- loading components:
+--   Core
+--   PluginGeoModel
+--   PluginJson
+--   Fatras
+-- Found Python: /cvmfs/atlas-nightlies.cern.ch/repo/sw/main_Athena_x86_64-el9-gcc14-opt/sw/lcg/releases/LCG_107a_ATLAS_13/Python/3.11.9/x86_64-el9-gcc14-opt/bin/python3.11 (found suitable version "3.11.9", minimum required is "3.11") found components: Interpreter
+-- Setting up the tdaq-common externals...
+-- Setting ATLAS specific build flags
+-- Found checker_gccplugins library under: /cvmfs/atlas-nightlies.cern.ch/repo/sw/main_Athena_x86_64-el9-gcc14-opt/2025-06-28T2100/AthenaExternals/25.0.36/InstallArea/x86_64-el9-gcc14-opt/lib/libchecker_gccplugins.so
+-- Enabling Python code checker: /cvmfs/atlas-nightlies.cern.ch/repo/sw/main_Athena_x86_64-el9-gcc14-opt/2025-06-28T2100/AthenaExternals/25.0.36/InstallArea/x86_64-el9-gcc14-opt/bin/flake8_atlas
+-- Setting up LCG release "LCG_107a_ATLAS_13" for platform: x86_64-el9-gcc14-opt
+-- Found ROOT: /cvmfs/atlas-nightlies.cern.ch/repo/sw/main_Athena_x86_64-el9-gcc14-opt/sw/lcg/releases/LCG_107a_ATLAS_13/ROOT/6.34.04/x86_64-el9-gcc14-opt/cmake (found version 6.34.04)
+-- Found Gaudi: /cvmfs/atlas-nightlies.cern.ch/repo/sw/main_Athena_x86_64-el9-gcc14-opt/2025-06-28T2100/AthenaExternals/25.0.36/InstallArea/x86_64-el9-gcc14-opt/lib/cmake/Gaudi (found version 39.4)
+-- Building VecMem as part of the TRACCC project
+-- Using memory resource types from the std::pmr namespace
+-- Building Algebra Plugins as part of the TRACCC project
+-- Fetching covfie as part of the traccc project
+[ 11%] Performing download step (download, verify and extract) for 'covfie-populate'
+-- Downloading...
+   dst='/eos/home-j/jlai/test/G-200/build/_deps/covfie-subbuild/covfie-populate-prefix/src/v0.15.1.tar.gz'
+   timeout='none'
+   inactivity timeout='none'
+-- Using src='https://github.com/acts-project/covfie/archive/refs/tags/v0.15.1.tar.gz'
+-- verifying file...
+       file='/eos/home-j/jlai/test/G-200/build/_deps/covfie-subbuild/covfie-populate-prefix/src/v0.15.1.tar.gz'
+-- MD5 hash of
+    /eos/home-j/jlai/test/G-200/build/_deps/covfie-subbuild/covfie-populate-prefix/src/v0.15.1.tar.gz
+  does not match expected value
+    expected: 'aa54f7e7e1a83edd02660e2778d29109'
+      actual: '244091fad83f1b39bd9e9a9e66aad931'
+-- Hash mismatch, removing...
+-- Using src='https://github.com/acts-project/covfie/archive/refs/tags/v0.15.1.tar.gz'
+-- verifying file...
+       file='/eos/home-j/jlai/test/G-200/build/_deps/covfie-subbuild/covfie-populate-prefix/src/v0.15.1.tar.gz'
+-- MD5 hash of
+    /eos/home-j/jlai/test/G-200/build/_deps/covfie-subbuild/covfie-populate-prefix/src/v0.15.1.tar.gz
+  does not match expected value
+    expected: 'aa54f7e7e1a83edd02660e2778d29109'
+      actual: '244091fad83f1b39bd9e9a9e66aad931'
+-- Hash mismatch, removing...
+-- Using src='https://github.com/acts-project/covfie/archive/refs/tags/v0.15.1.tar.gz'
+-- verifying file...
+       file='/eos/home-j/jlai/test/G-200/build/_deps/covfie-subbuild/covfie-populate-prefix/src/v0.15.1.tar.gz'
+-- MD5 hash of
+    /eos/home-j/jlai/test/G-200/build/_deps/covfie-subbuild/covfie-populate-prefix/src/v0.15.1.tar.gz
+  does not match expected value
+    expected: 'aa54f7e7e1a83edd02660e2778d29109'
+      actual: '244091fad83f1b39bd9e9a9e66aad931'
+-- Hash mismatch, removing...
+-- Using src='https://github.com/acts-project/covfie/archive/refs/tags/v0.15.1.tar.gz'
+-- [download 3% complete]
+-- [download 6% complete]
+-- [download 8% complete]
+-- [download 12% complete]
+-- [download 15% complete]
+-- [download 19% complete]
+-- [download 22% complete]
+-- [download 26% complete]
+-- [download 29% complete]
+-- [download 33% complete]
+-- [download 36% complete]
+-- [download 40% complete]
+-- [download 43% complete]
+-- [download 46% complete]
+-- [download 50% complete]
+-- [download 53% complete]
+-- [download 57% complete]
+-- [download 60% complete]
+-- [download 64% complete]
+-- [download 67% complete]
+-- [download 71% complete]
+-- [download 74% complete]
+-- [download 79% complete]
+-- [download 83% complete]
+-- [download 86% complete]
+-- [download 90% complete]
+-- [download 93% complete]
+-- [download 97% complete]
+-- [download 100% complete]
+-- verifying file...
+       file='/eos/home-j/jlai/test/G-200/build/_deps/covfie-subbuild/covfie-populate-prefix/src/v0.15.1.tar.gz'
+-- MD5 hash of
+    /eos/home-j/jlai/test/G-200/build/_deps/covfie-subbuild/covfie-populate-prefix/src/v0.15.1.tar.gz
+  does not match expected value
+    expected: 'aa54f7e7e1a83edd02660e2778d29109'
+      actual: '244091fad83f1b39bd9e9a9e66aad931'
+-- Hash mismatch, removing...
+-- Using src='https://github.com/acts-project/covfie/archive/refs/tags/v0.15.1.tar.gz'
+-- verifying file...
+       file='/eos/home-j/jlai/test/G-200/build/_deps/covfie-subbuild/covfie-populate-prefix/src/v0.15.1.tar.gz'
+-- MD5 hash of
+    /eos/home-j/jlai/test/G-200/build/_deps/covfie-subbuild/covfie-populate-prefix/src/v0.15.1.tar.gz
+  does not match expected value
+    expected: 'aa54f7e7e1a83edd02660e2778d29109'
+      actual: '244091fad83f1b39bd9e9a9e66aad931'
+-- Hash mismatch, removing...
+-- Using src='https://github.com/acts-project/covfie/archive/refs/tags/v0.15.1.tar.gz'
+-- [download 3% complete]
+-- [download 7% complete]
+-- [download 10% complete]
+-- [download 14% complete]
+-- [download 15% complete]
+-- [download 19% complete]
+-- [download 22% complete]
+-- [download 26% complete]
+-- [download 29% complete]
+-- [download 33% complete]
+-- [download 36% complete]
+-- [download 40% complete]
+-- [download 43% complete]
+-- [download 46% complete]
+-- [download 50% complete]
+-- [download 53% complete]
+-- [download 57% complete]
+-- [download 60% complete]
+-- [download 64% complete]
+-- [download 67% complete]
+-- [download 71% complete]
+-- [download 74% complete]
+-- [download 77% complete]
+-- [download 81% complete]
+-- [download 83% complete]
+-- [download 88% complete]
+-- [download 92% complete]
+-- [download 95% complete]
+-- [download 98% complete]
+-- [download 100% complete]
+-- verifying file...
+       file='/eos/home-j/jlai/test/G-200/build/_deps/covfie-subbuild/covfie-populate-prefix/src/v0.15.1.tar.gz'
+-- MD5 hash of
+    /eos/home-j/jlai/test/G-200/build/_deps/covfie-subbuild/covfie-populate-prefix/src/v0.15.1.tar.gz
+  does not match expected value
+    expected: 'aa54f7e7e1a83edd02660e2778d29109'
+      actual: '244091fad83f1b39bd9e9a9e66aad931'
+-- Hash mismatch, removing...
+CMake Error at /eos/home-j/jlai/test/G-200/build/_deps/covfie-subbuild/covfie-populate-prefix/src/covfie-populate-stamp/download-covfie-populate.cmake:163 (message):
+  Each download failed!
+
+
+
+
+
+gmake[2]: *** [CMakeFiles/covfie-populate.dir/build.make:100: covfie-populate-prefix/src/covfie-populate-stamp/covfie-populate-download] Error 1
+gmake[1]: *** [CMakeFiles/Makefile2:87: CMakeFiles/covfie-populate.dir/all] Error 2
+gmake: *** [Makefile:91: all] Error 2
+
+CMake Error at /cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase/x86_64/Cmake/4.0.1/Linux-x86_64/share/cmake-4.0/Modules/FetchContent.cmake:1918 (message):
+  Build step for covfie failed: 2
+Call Stack (most recent call first):
+  /cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase/x86_64/Cmake/4.0.1/Linux-x86_64/share/cmake-4.0/Modules/FetchContent.cmake:1609 (__FetchContent_populateSubbuild)
+  /cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase/x86_64/Cmake/4.0.1/Linux-x86_64/share/cmake-4.0/Modules/FetchContent.cmake:2145:EVAL:2 (__FetchContent_doPopulation)
+  /cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase/x86_64/Cmake/4.0.1/Linux-x86_64/share/cmake-4.0/Modules/FetchContent.cmake:2145 (cmake_language)
+  /cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase/x86_64/Cmake/4.0.1/Linux-x86_64/share/cmake-4.0/Modules/FetchContent.cmake:2384 (__FetchContent_Populate)
+  /eos/user/j/jlai/test/G-200/build/_deps/traccc-src/extern/covfie/CMakeLists.txt:33 (FetchContent_MakeAvailable)
+
+
+-- Configuring incomplete, errors occurred!
