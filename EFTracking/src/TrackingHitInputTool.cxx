@@ -52,11 +52,8 @@ StatusCode TrackingHitInputTool::initialize()
   ATH_CHECK(m_xAODStripClusterFromInDetClusterKey.initialize());
   ATH_CHECK(m_xAODSpacepointFromInDetClusterKey.initialize());
 
-
   ATH_CHECK( m_pixelDetEleCollKey.initialize() );
   ATH_CHECK( m_stripDetEleCollKey.initialize() );
-
-  ATH_CHECK(m_lorentzAngleTool.retrieve());
 
   std::ifstream acts_map_file(m_filesDir+"actsToAthenaIdentifierMap.txt");
   std::string str;
@@ -333,12 +330,6 @@ std::map<int,int> TrackingHitInputTool::convertClusters(const EventContext& even
 
       Amg::Vector3D globalPos = pDE->globalPosition(localPos);
 
-      if (m_doShift) {
-        double shift =  m_lorentzAngleTool->getLorentzShift(Pixel_ModuleHash, eventContext);
-        Amg::Vector2D localPosShift(localPos[Trk::locX]+shift,localPos[Trk::locY]);
-        localPos = localPosShift;
-      }
-
       double const etaWidth = static_cast<double>(colMax - colMin) / 2;
       double const phiWidth = static_cast<double>(rowMax - rowMin) / 2;
       double const etaW = design->widthFromColumnRange(colMin, colMax-1);
@@ -450,11 +441,6 @@ std::map<int,int> TrackingHitInputTool::convertClusters(const EventContext& even
       Amg::Vector2D localPos(centre.xPhi(),  centre.xEta());
       if(printClusterInfo){ATH_MSG_DEBUG("local pos of this cluster: " << localPos.x() << "," << localPos.y());}
 
-      if (m_doShift) {
-        double shift =  m_lorentzAngleTool->getLorentzShift(Strip_ModuleHash, eventContext);
-        Amg::Vector2D localPosShift(localPos[Trk::locX]+shift,localPos[Trk::locY]);
-        localPos = localPosShift;
-      }
       Amg::Vector3D globalPos = pDE->globalPosition(localPos);
       Eigen::Matrix<float,1,1> localPosition;
       Eigen::Matrix<float,1,1> localCovariance;

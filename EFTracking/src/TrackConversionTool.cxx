@@ -224,8 +224,11 @@ std::optional<Acts::BoundTrackParameters> TrackConversionTool::convertToActsPara
 StatusCode TrackConversionTool::convertTracks(
       EventContext const & eventContext
     , traccc::track_state_container_types::host const & resolved_tracks
-    , std::map<int,int> const & cluster_map)
+    , std::map<int,int> const & cluster_map
+      , unsigned & nb_output_tracks)
 {
+  nb_output_tracks = 0;
+
   ActsTrk::MutableTrackContainer trackContainer;
   SG::WriteHandle<ActsTrk::TrackContainer> trackContainerHandle(m_ActsTracccTrackContainerKey, eventContext);
 
@@ -412,18 +415,19 @@ StatusCode TrackConversionTool::convertTracks(
 
   }
 
-  ATH_MSG_INFO("Wrote out "<< trackContainer.size() << " tracks"
-    << " out of " << resolved_tracks.size()
-    << ", excluded:"
-    << " no sp: " << excluded_no_sp
-    << ", weird sp: " << excluded_weird_sp
-    << ", ndf: " << excluded_ndf
-    );
+  // ATH_MSG_INFO("Wrote out "<< trackContainer.size() << " tracks"
+  //   << " out of " << resolved_tracks.size()
+  //   << ", excluded:"
+  //   << " no sp: " << excluded_no_sp
+  //   << ", weird sp: " << excluded_weird_sp
+  //   << ", ndf: " << excluded_ndf
+  //   );
+  nb_output_tracks = trackContainer.size();
 
   // Debug stats
-  ATH_MSG_INFO("chi2 min: " << chi2_min << ", max: " << chi2_max << ", avg: " << chi2_sum / static_cast<float>(trackContainer.size()));
-  ATH_MSG_INFO("ndf min: " << ndf_min << ", max: " << ndf_max << ", avg: " << ndf_sum / static_cast<float>(trackContainer.size()));
-  ATH_MSG_INFO("meas min: " << meas_min << ", max: " << meas_max << ", avg: " << static_cast<float>(meas_sum) / static_cast<float>(trackContainer.size()));
+  // ATH_MSG_INFO("chi2 min: " << chi2_min << ", max: " << chi2_max << ", avg: " << chi2_sum / static_cast<float>(trackContainer.size()));
+  // ATH_MSG_INFO("ndf min: " << ndf_min << ", max: " << ndf_max << ", avg: " << ndf_sum / static_cast<float>(trackContainer.size()));
+  // ATH_MSG_INFO("meas min: " << meas_min << ", max: " << meas_max << ", avg: " << static_cast<float>(meas_sum) / static_cast<float>(trackContainer.size()));
 
   std::unique_ptr<ActsTrk::TrackContainer> constTracksContainer =
       m_tracksBackendHandlesHelper.moveToConst(

@@ -33,26 +33,20 @@
 
 // VecMem include(s).
 #include <memory>
+#include <traccc/definitions/common.hpp>
+#include <traccc/utils/bfield.hpp>
 #include <vecmem/memory/binary_page_memory_resource.hpp>
 #include <vecmem/memory/host_memory_resource.hpp>
 
 // Detray include(s).
 #include "detray/core/detector.hpp"
-#include "detray/propagator/rk_stepper.hpp"
-#include "detray/navigation/navigator.hpp"
 #include "detray/io/frontend/detector_reader.hpp"
 
 // Traccc alg includes
 #include "traccc/io/read_bfield.hpp"
-#include "traccc/cuda/utils/make_bfield.hpp"
 #include "traccc/clusterization/clustering_config.hpp"
-#include "traccc/seeding/seeding_algorithm.hpp"
-#include "traccc/seeding/track_params_estimation.hpp"
 #include "traccc/fitting/kalman_fitting_algorithm.hpp"
 #include "traccc/ambiguity_resolution/greedy_ambiguity_resolution_algorithm.hpp"
-#include "traccc/fitting/kalman_filter/kalman_fitter.hpp"
-#include "traccc/seeding/seeding_algorithm.hpp"
-#include "traccc/seeding/track_params_estimation.hpp"
 #include "traccc/finding/combinatorial_kalman_filter_algorithm.hpp"
 #include "ActsEvent/MeasurementToTruthParticleAssociation.h"
 #include "traccc/utils/seed_generator.hpp"
@@ -67,19 +61,6 @@
 #include <format>
 #include "AthenaDetrayConversion.h"
 #include "xAODInDetMeasurement/PixelClusterContainer.h"
-
-using host_detector_type = traccc::default_detector::host;
-using device_detector_type = traccc::default_detector::device;
-using scalar_type = traccc::default_detector::device::scalar_type;
-using b_field_t = covfie::field<traccc::const_bfield_backend_t<scalar_type>>;
-using rk_stepper_type =
-        detray::rk_stepper<b_field_t::view_t, traccc::default_algebra,
-                           detray::constrained_step<scalar_type>>;
-using host_navigator_type = detray::navigator<const host_detector_type>;
-using host_fitter_type = traccc::kalman_fitter<rk_stepper_type, host_navigator_type>;
-using device_navigator_type = detray::navigator<const device_detector_type>;
-using device_fitter_type = traccc::kalman_fitter<rk_stepper_type, device_navigator_type>;
-using free_track_parameters = detray::free_track_parameters<traccc::default_algebra>;
 
 template <typename TRAIT> class TrackingRecoTool
     : public extends<AthAlgTool, ITrackingRecoTool>
@@ -134,10 +115,7 @@ private:
     traccc::seedfinder_config m_seedfinder;
     traccc::seedfilter_config m_seedfilter;
 
-    float m_const_bFieldInZ;
-    traccc::vector3 m_field_vec;
     covfie::field<traccc::inhom_bfield_backend_t<traccc::scalar>> m_inhom_field;
-    covfie::field<traccc::const_bfield_backend_t<traccc::scalar>> m_const_field;
     traccc::bfield m_inhom_host_field;
     traccc::bfield m_inhom_gpu_field;
 
@@ -178,9 +156,9 @@ private:
     std::unique_ptr<typename TRAIT::async_copy_type> m_async_copy;
     std::unique_ptr<traccc::device::container_d2h_copy_alg<traccc::track_state_container_types>> m_copy_track_states;
 
-    host_detector_type::buffer_type m_device_detector;
-    host_detector_type::view_type m_det_view;
-    std::unique_ptr<host_detector_type> m_detector;
+    traccc::default_detector::host::buffer_type m_device_detector;
+    traccc::default_detector::host::view_type m_det_view;
+    std::unique_ptr<traccc::default_detector::host> m_detector;
     std::unique_ptr<traccc::silicon_detector_description::host> m_det_descr;
     std::unique_ptr<traccc::silicon_detector_description::buffer> m_device_det_descr;
 
@@ -204,6 +182,7 @@ private:
     uint64_t m_fitted_tracks_gpu = 0;
     uint64_t m_ambiguity_free_tracks_cpu = 0;
     uint64_t m_ambiguity_free_tracks_gpu = 0;
+    uint64_t m_output_tracks = 0;
 
     std::unique_ptr<typename TRAIT::clusterization_algorithm_type> m_clusterization_alg_gpu;
     std::unique_ptr<typename TRAIT::measurement_sorting_algorithm_type> m_meas_sort_alg_gpu;
@@ -218,6 +197,9 @@ private:
     void create_async_copy_object(std::unique_ptr<typename TRAIT::async_copy_type> &);
     void get_stream_for_algo(TRAIT::stream_for_algo_type* &);
     std::string get_init_message();
+    traccc::bfield make_gpu_bfield(
+          traccc::bfield const & host_bfield
+        , TRAIT::stream_for_algo_type & stream);
 };
 
 template <typename scalar_t>
@@ -287,31 +269,31 @@ template<typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::initialize()
     ATH_CHECK(detStore()->retrieve(m_pixelManager));
     ATH_CHECK(detStore()->retrieve(m_stripManager));
 
+    ATH_MSG_INFO("Creating magnetic field");
+    traccc::io::read_bfield(m_inhom_field, m_filesDir+"ITk_bfield.cvf", traccc::data_format::binary);
+    m_inhom_host_field = traccc::bfield{std::move(m_inhom_field)};
+    m_inhom_gpu_field = make_gpu_bfield(m_inhom_host_field, *p_stream_obj);
+
     // Read the detector.
-    ATH_MSG_INFO("Loading detector");
     detray::io::detector_reader_config reader_cfg{};
     reader_cfg.add_file(m_filesDir+"ITk_DetectorBuilder_geometry.json");
     reader_cfg.add_file(m_filesDir+"ITk_detector_material.json");
     reader_cfg.add_file(m_filesDir+"ITk_DetectorBuilder_surface_grids.json");
+    #if NDEBUG
     reader_cfg.do_check(false);
-    auto [host_det, _] = detray::io::read_detector<host_detector_type>(*m_host_mr, reader_cfg);
-    m_detector = std::make_unique<host_detector_type>(std::move(host_det));
+    ATH_MSG_INFO("Loading detray detector: checks disabled");
+    #else
+    ATH_MSG_INFO("Loading detray detector: checks enabled");
+    #endif
+    auto [host_det, _] = detray::io::read_detector<traccc::default_detector::host>(*m_host_mr, reader_cfg);
+    m_detector = std::make_unique<traccc::default_detector::host>(std::move(host_det));
 
-    ATH_MSG_INFO("Loading detector description");
+    ATH_MSG_INFO("Loading traccc detector");
     m_det_descr = std::make_unique<traccc::silicon_detector_description::host>(*m_host_mr);
     traccc::io::read_detector_description(*m_det_descr,
         m_filesDir+"ITk_DetectorBuilder_geometry.json",
         m_filesDir+"ITk_digitization_config_with_strips.json",
         traccc::data_format::json);
-
-    ATH_MSG_INFO("Creating B field");
-    // we still need the const mag field in seeding
-    m_const_bFieldInZ = 1.99724f * unit<float>::T;
-    m_field_vec = {0.f, 0.f,m_const_bFieldInZ};
-
-    traccc::io::read_bfield(m_inhom_field, m_filesDir+"ITk_bfield.cvf", traccc::data_format::binary);
-    m_inhom_host_field = traccc::bfield{std::move(m_inhom_field)};
-    m_inhom_gpu_field = traccc::cuda::make_bfield(m_inhom_host_field);
 
     ATH_MSG_DEBUG("Setting up configs");
     // m_seedfinder.zMin = -3000.f * unit<float>::mm;
@@ -327,7 +309,7 @@ template<typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::initialize()
     // m_seedfinder.impactMax = 2.f * unit<float>::mm;
     // m_seedfinder.sigmaScattering = 100.0f;
     // m_seedfinder.maxPtScattering = 10.f * unit<float>::GeV;
-    // m_seedfinder.maxSeedsPerSpM = 3;
+    // m_seedfinder.maxSeedsPerSpM = 1;
     // m_seedfinder.radLengthPerSeed = 0.05f;
 
     m_finding_cfg.max_num_branches_per_seed = 3;
@@ -350,11 +332,11 @@ template<typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::initialize()
     m_finding_cfg.propagation.stepping.do_covariance_transport = true;
     m_finding_cfg.propagation.navigation.overstep_tolerance = -300.f * unit<float>::um;
 
-    // m_fitting_cfg.propagation.navigation.min_mask_tolerance = 1e-5f * unit<float>::mm;
-    // m_fitting_cfg.propagation.navigation.max_mask_tolerance = 3.f * unit<float>::mm;
-    // m_fitting_cfg.propagation.navigation.overstep_tolerance = -300.f * unit<float>::um;
-    // m_fitting_cfg.propagation.navigation.search_window[0] = 0u;
-    // m_fitting_cfg.propagation.navigation.search_window[1] = 0u;
+    m_fitting_cfg.propagation.navigation.min_mask_tolerance = 1e-5f * unit<float>::mm;
+    m_fitting_cfg.propagation.navigation.max_mask_tolerance = 3.f * unit<float>::mm;
+    m_fitting_cfg.propagation.navigation.overstep_tolerance = -300.f * unit<float>::um;
+    m_fitting_cfg.propagation.navigation.search_window[0] = 0u;
+    m_fitting_cfg.propagation.navigation.search_window[1] = 0u;
 
     m_logger = Acts::getDefaultLogger("EFTrackingGPU", Acts::Logging::INFO);
 
@@ -462,21 +444,24 @@ template<typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::doRecoFromClusters(
 template <typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::doRecoFromHits(
     const EventContext& evtcontext)
 {
-    ATH_MSG_INFO("Reconstructing tracks from hits");
+    // ATH_MSG_INFO("Reconstructing tracks from hits");
     m_chrono->chronoStart("track reconstruction: RDO to Acts tracks");
 
     // Instantiate host containers/collections
     traccc::edm::silicon_cell_collection::host cells_host_buffer{*m_host_mr};
 
-    ATH_MSG_INFO("reading cells");
+    // ATH_MSG_INFO("reading cells");
     m_chrono->chronoStart("1 read cells");
     ATH_CHECK(read_cells(cells_host_buffer, evtcontext));
     m_chrono->chronoStop("1 read cells");
 
     m_cells += cells_host_buffer.size();
 
-    ATH_MSG_INFO("host to gpu data transfer: " << cells_host_buffer.size() << " bytes");
+    // ATH_MSG_INFO("host to gpu data transfer: " << cells_host_buffer.size() << " bytes");
+
+    // stops in clustersToTracks
     m_chrono->chronoStart("track reconstruction: host memory to host memory");
+
     m_chrono->chronoStart("2 host to gpu data transfer");
     traccc::edm::silicon_cell_collection::buffer cells_gpu_buffer(
         cells_host_buffer.size(), m_mr->main);
@@ -487,7 +472,10 @@ template <typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::doRecoFromHits(
     }
     m_chrono->chronoStop("2 host to gpu data transfer");
 
-    ATH_MSG_DEBUG("clusterization #cells: " << m_cells);
+    // ATH_MSG_DEBUG("clusterization #cells: " << m_cells);
+
+    // stops in clustersToTracks
+    m_chrono->chronoStart("track reconstruction: gpu work");
 
     m_chrono->chronoStart("3 gpu clusterization");
     traccc::measurement_collection_types::buffer measurements_gpu_buffer =
@@ -501,7 +489,7 @@ template <typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::doRecoFromHits(
 
     m_chrono->chronoStop("track reconstruction: RDO to Acts tracks");
 
-    ATH_MSG_INFO("Reconstruction done");
+    // ATH_MSG_INFO("Reconstruction done");
     return StatusCode::SUCCESS;
 }
 
@@ -561,9 +549,15 @@ template<typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::clustersToTracks(
     // if there are no hits, then no tracking can be done
     // we do not pass empty containers to traccc, but still have to create empty Athena containers
     if((m_async_copy->get_size(measurements_gpu_buffer)) == 0){
+        // starts in calling function
+        m_chrono->chronoStop("track reconstruction: gpu work");
+        // starts in calling function
+        m_chrono->chronoStop("track reconstruction: host memory to host memory");
 
         traccc::track_state_container_types::host track_candidates;
-        ATH_CHECK(m_cnvTool->convertTracks(evtcontext, track_candidates, cluster_map));
+        unsigned nb_output_tracks = 0;
+        ATH_CHECK(m_cnvTool->convertTracks(evtcontext, track_candidates,
+            cluster_map, nb_output_tracks));
 
         if(m_checkSeeds){
 
@@ -580,14 +574,14 @@ template<typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::clustersToTracks(
 
     }
 
-    ATH_MSG_INFO("spacepoint formation");
+    // ATH_MSG_INFO("spacepoint formation");
     m_chrono->chronoStart("4 gpu spacepoint formation");
     typename TRAIT::spacepoint_formation_algorithm_type::output_type spacepoints_gpu_buffer =
         (*m_spacepoint_form_alg_gpu)(m_det_view, measurements_gpu_buffer);
     m_chrono->chronoStop("4 gpu spacepoint formation");
     m_spacepoints_gpu += (*m_copy).get_size(spacepoints_gpu_buffer);
 
-    ATH_MSG_INFO("seeding");
+    // ATH_MSG_INFO("seeding");
     m_chrono->chronoStart("5 traccc seeding");
     typename TRAIT::seeding_algorithm_type::output_type seeds_gpu_buffer =
         (*m_seeding_alg_gpu)(spacepoints_gpu_buffer);
@@ -613,15 +607,16 @@ template<typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::clustersToTracks(
 
     }
 
-    ATH_MSG_DEBUG("track params estimation");
+    // ATH_MSG_INFO("track params estimation");
     m_chrono->chronoStart("6 gpu track params estimation");
     typename TRAIT::track_params_estimation_type::output_type track_params_gpu_buffer =
         (*m_track_params_estimation_gpu)(measurements_gpu_buffer,
-            spacepoints_gpu_buffer, seeds_gpu_buffer, m_field_vec);
+            spacepoints_gpu_buffer, seeds_gpu_buffer,
+            {0.f, 0.f, m_seedfinder.bFieldInZ});
     m_chrono->chronoStop("6 gpu track params estimation");
     m_params_gpu += (*m_copy).get_size(track_params_gpu_buffer);
 
-    ATH_MSG_INFO("track finding");
+    // ATH_MSG_INFO("track finding");
     m_chrono->chronoStart("7 gpu track finding");
     typename TRAIT::finding_algorithm_type::output_type track_candidates_gpu_buffer =
         (*m_finding_alg_gpu)(m_det_view, m_inhom_gpu_field, measurements_gpu_buffer,
@@ -629,7 +624,7 @@ template<typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::clustersToTracks(
     m_chrono->chronoStop("7 gpu track finding");
     m_found_tracks_gpu += (*m_copy).get_size(track_candidates_gpu_buffer);
 
-    ATH_MSG_INFO("track fitting");
+    // ATH_MSG_INFO("track fitting");
     m_chrono->chronoStart("8 gpu track fitting");
     typename TRAIT::fitting_algorithm_type::output_type track_states_gpu_buffer =
         (*m_fitting_alg_gpu)(m_det_view, m_inhom_gpu_field,
@@ -638,17 +633,24 @@ template<typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::clustersToTracks(
     // m_fitted_tracks_gpu += (*m_copy).get_size(track_states_gpu_buffer);
     m_fitted_tracks_gpu += track_states_gpu_buffer.items.size();
 
+    // starts in calling function
+    m_chrono->chronoStop("track reconstruction: gpu work");
 
-    ATH_MSG_INFO("copying data from gpu to host");
+    // ATH_MSG_INFO("copying data from gpu to host");
     m_chrono->chronoStart("9 gpu to host data transfer");
     auto track_states_gpu = (*m_copy_track_states)(track_states_gpu_buffer);
     m_chrono->chronoStop("9 gpu to host data transfer");
 
-    ATH_MSG_INFO("converting traccc tracks to AOD");
-    m_chrono->chronoStart("10 traccc tracks conversion to Acts tracks");
-    ATH_CHECK(m_cnvTool->convertTracks(evtcontext, track_states_gpu, cluster_map));
-    m_chrono->chronoStop("10 traccc tracks conversion to Acts tracks");
+    // starts in calling function
     m_chrono->chronoStop("track reconstruction: host memory to host memory");
+
+    // ATH_MSG_INFO("converting traccc tracks to AOD");
+    m_chrono->chronoStart("10 traccc tracks conversion to Acts tracks");
+    unsigned nb_output_tracks = 0;
+    ATH_CHECK(m_cnvTool->convertTracks(evtcontext, track_states_gpu,
+        cluster_map, nb_output_tracks));
+    m_output_tracks += nb_output_tracks;
+    m_chrono->chronoStop("10 traccc tracks conversion to Acts tracks");
 
     return StatusCode::SUCCESS;
 }
@@ -928,8 +930,9 @@ template <typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::finalize()
     ATH_MSG_INFO("- found (gpu)    " << m_found_tracks_gpu << " tracks");
     // ATH_MSG_INFO("- fitted (cpu)   " << m_fitted_tracks_cpu << " tracks");
     ATH_MSG_INFO("- fitted (gpu)   " << m_fitted_tracks_gpu << " tracks");
+    ATH_MSG_INFO("- output (gpu)   " << m_output_tracks << " tracks");
     // ATH_MSG_INFO("- resolved (cpu) " << m_ambiguity_free_tracks_cpu << " tracks");
-    ATH_MSG_INFO("- resolved (gpu) " << m_ambiguity_free_tracks_gpu << " tracks");
+    // ATH_MSG_INFO("- resolved (gpu) " << m_ambiguity_free_tracks_gpu << " tracks");
 
     return StatusCode::SUCCESS;
 }
@@ -1117,12 +1120,13 @@ TrackingRecoTool<TRAIT>::makeTruthSeeds(traccc::bound_track_parameters_collectio
             if(dist==0){
                 meas = this_meas;
             }
-
         }
 
         const xAOD::TruthParticle* tp = barcode_tp_map[barcode];
         ATH_MSG_DEBUG("This truth particle info: pdgID " << tp->pdgId() << " charge " << tp->charge());
-        const free_track_parameters free_param({cluster->globalPosition().x(),cluster->globalPosition().y(),cluster->globalPosition().z()}, 0.f, {tp->px(),tp->py(),tp->pz()}, tp->charge());
+        const detray::free_track_parameters<traccc::default_algebra> free_param(
+            {cluster->globalPosition().x(),cluster->globalPosition().y(),cluster->globalPosition().z()},
+            0.f, {tp->px(),tp->py(),tp->pz()}, tp->charge());
         auto seed_params = sg(meas.surface_link, free_param,
                             traccc::detail::particle_from_pdg_number<traccc::scalar>(tp->pdgId()));
         truth_seeds.push_back(seed_params);

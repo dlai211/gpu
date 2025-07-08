@@ -1,6 +1,7 @@
 #include "TrackingRecoToolSycl.h"
 #include "TrackingRecoTool.h"
 #include <memory>
+#include "traccc/sycl/utils/make_bfield.hpp"
 
 template<> void TrackingRecoTool<TrackingRecoToolTraitSYCL>::create_copy_object(
     std::unique_ptr<TrackingRecoToolTraitSYCL::copy_type> & copy_obj)
@@ -25,4 +26,13 @@ template<> std::string
     TrackingRecoTool<TrackingRecoToolTraitSYCL>::get_init_message()
 {
     return "Initializing reco tool: SYCL implementation";
+}
+
+template<> traccc::bfield
+    TrackingRecoTool<TrackingRecoToolTraitSYCL>::make_gpu_bfield(
+          traccc::bfield const & host_bfield
+        , TrackingRecoToolTraitSYCL::stream_for_algo_type & queue_wrapper
+        )
+{
+    return traccc::sycl::make_bfield(host_bfield, queue_wrapper);
 }

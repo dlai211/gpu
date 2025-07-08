@@ -22,7 +22,6 @@
 #include "xAODInDetMeasurement/StripClusterContainer.h"
 #include "PixelReadoutGeometry/PixelDetectorManager.h"
 #include "SCT_ReadoutGeometry/SCT_DetectorManager.h"
-#include "InDetCondTools/ISiLorentzAngleTool.h"
 
 #include "InDetRawData/PixelRDO_Container.h"
 #include "InDetRawData/SCT_RDO_Container.h"
@@ -68,13 +67,10 @@ class TrackingHitInputTool : public extends<AthAlgTool, ITrackingHitInputTool>
         SG::WriteHandleKey<xAOD::StripClusterContainer> m_xAODStripClusterFromTracccClusterKey{this, "xAODStripClusterFromTracccClusterKey","xAODStripClustersFromTracccCluster","Traccc cluster ->xAOD StripClusters Container"};
         SG::WriteHandleKey<xAOD::SpacePointContainer> m_xAODSpacepointFromTracccClusterKey{this, "xAODSpacepointFromTracccClusterKey","xAODSpacepointFromTracccCluster","Traccc cluster->xAOD Spacepoint Container"};
 
-
         SG::WriteHandleKey<xAOD::PixelClusterContainer> m_xAODPixelClusterFromInDetClusterKey{this, "xAODPixelClusterFromInDetClusterKey","xAODPixelClustersFromInDetCluster","InDet cluster->xAOD PixelClusters Container"};
         SG::WriteHandleKey<xAOD::StripClusterContainer> m_xAODStripClusterFromInDetClusterKey{this, "xAODStripClusterFromInDetClusterKey","xAODStripClustersFromInDetCluster","InDet cluster ->xAOD StripClusters Container"};
         SG::WriteHandleKey<xAOD::SpacePointContainer> m_xAODSpacepointFromInDetClusterKey{this, "xAODSpacepointFromInDetClusterKey","xAODSpacepointFromInDetCluster","InDet cluster->xAOD Spacepoint Container"};
 
-        ToolHandle<ISiLorentzAngleTool> m_lorentzAngleTool {this, "LorentzAngleTool", "SiLorentzAngleTool/SCTLorentzAngleTool", "Tool to retrieve Lorentz angle of SCT"};
-        Gaudi::Property<bool> m_doShift{this, "applyLorentsShift", false, "Apply Lorentz shift to cluster local position"};
         Gaudi::Property<std::string> m_filesDir{this, "filesDir", "/eos/project/a/atlas-eftracking/GPU/ITk_data/", "full path to location with detector files"};
 
         SG::ReadCondHandleKey<InDetDD::SiDetectorElementCollection> m_pixelDetEleCollKey{this, "PixelDetEleCollKey", "ITkPixelDetectorElementCollection", "Key of SiDetectorElementCollection for Pixel"};
