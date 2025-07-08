@@ -22,6 +22,7 @@
 #include "xAODInDetMeasurement/StripClusterContainer.h"
 #include "PixelReadoutGeometry/PixelDetectorManager.h"
 #include "SCT_ReadoutGeometry/SCT_DetectorManager.h"
+#include "InDetCondTools/ISiLorentzAngleTool.h"
 
 #include "InDetRawData/PixelRDO_Container.h"
 #include "InDetRawData/SCT_RDO_Container.h"
@@ -72,6 +73,9 @@ class TrackingHitInputTool : public extends<AthAlgTool, ITrackingHitInputTool>
         SG::WriteHandleKey<xAOD::SpacePointContainer> m_xAODSpacepointFromInDetClusterKey{this, "xAODSpacepointFromInDetClusterKey","xAODSpacepointFromInDetCluster","InDet cluster->xAOD Spacepoint Container"};
 
         Gaudi::Property<std::string> m_filesDir{this, "filesDir", "/eos/project/a/atlas-eftracking/GPU/ITk_data/", "full path to location with detector files"};
+
+        ToolHandle<ISiLorentzAngleTool> m_lorentzAngleTool {this, "LorentzAngleTool", "SiLorentzAngleTool/SCTLorentzAngleTool", "Tool to retrieve Lorentz angle of SCT"};
+        // Gaudi::Property<bool> m_doShift{this, "applyLorentsShift", false, "Apply Lorentz shift to cluster local position"};
 
         SG::ReadCondHandleKey<InDetDD::SiDetectorElementCollection> m_pixelDetEleCollKey{this, "PixelDetEleCollKey", "ITkPixelDetectorElementCollection", "Key of SiDetectorElementCollection for Pixel"};
         SG::ReadCondHandleKey<InDetDD::SiDetectorElementCollection> m_stripDetEleCollKey{this, "StripDetEleCollKey", "ITkStripDetectorElementCollection", "Key of SiDetectorElementCollection for Strip"};

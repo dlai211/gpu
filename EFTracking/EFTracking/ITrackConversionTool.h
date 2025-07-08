@@ -19,8 +19,7 @@ class ITrackConversionTool : virtual public ::IAlgTool
     virtual ~ITrackConversionTool() = default;
     virtual StatusCode convertTracks(EventContext const & eventContext
       , traccc::track_state_container_types::host const & resolved_tracks
-      , std::map<int,int> const & clusterMap
-      , unsigned & nb_output_tracks) = 0;
+      , std::map<int,int> const & clusterMap) = 0;
     virtual StatusCode convertSeeds(EventContext const & eventContext
       , traccc::edm::seed_collection::host const & seed_tracks
       , traccc::edm::spacepoint_collection::host const & traccc_spacepoints

@@ -55,6 +55,8 @@ StatusCode TrackingHitInputTool::initialize()
   ATH_CHECK( m_pixelDetEleCollKey.initialize() );
   ATH_CHECK( m_stripDetEleCollKey.initialize() );
 
+  ATH_CHECK(m_lorentzAngleTool.retrieve());
+
   std::ifstream acts_map_file(m_filesDir+"actsToAthenaIdentifierMap.txt");
   std::string str;
   while (std::getline(acts_map_file, str)){
@@ -180,6 +182,12 @@ std::pair<std::vector<clusterInfo>,std::map<int,int>>
   // printing all clusters and the associated cells on one endcap strip module
   bool printClusterInfo = false;
 
+  // Save the strip clusters output to csv file
+  std::string athena_strip_filename = "strip_cluster_athena.csv";
+  std::ofstream athena_strip_file(athena_strip_filename);
+  athena_strip_file << std::fixed << std::setprecision(10);
+  athena_strip_file << "geometry_id,athena_id,barrel_ec,local_x,local_y,global_x,global_y,global_z\n";
+
   for (const auto *const clusterCollection : *inputStripClusterContainer) {
     if (!clusterCollection) continue;
     for(const auto *const theCluster : *clusterCollection)  {
@@ -242,8 +250,19 @@ std::pair<std::vector<clusterInfo>,std::map<int,int>>
       if(printClusterInfo){ATH_MSG_DEBUG("Done cluster: " << index);}
 
       nStrip++;
+
+      athena_strip_file << geometry_id << ","
+        << Strip_ModuleID << ","
+        << m_stripID->barrel_ec(Strip_ModuleID) << ","
+        << theCluster->localPosition().x() << ","
+        << theCluster->localPosition().y() << ","
+        << theCluster->globalPosition().x() << ","
+        << theCluster->globalPosition().y() << ","
+        << theCluster->globalPosition().z() << "\n";
     }
   }
+
+  athena_strip_file.close();
 
   ATH_MSG_INFO("Read "<< nStrip << " strip clusters");
   ATH_MSG_INFO("Combined we have " << clusters.size() << " clusters.");
@@ -281,6 +300,11 @@ std::map<int,int> TrackingHitInputTool::convertClusters(const EventContext& even
   bool printClusterInfo = false;
 
   ATH_MSG_INFO("Converting clusters from Traccc");
+  // Save the strip clusters output to csv file
+  std::string traccc_strip_filename = "strip_cluster_traccc.csv";
+  std::ofstream traccc_strip_file(traccc_strip_filename);
+  traccc_strip_file << std::fixed << std::setprecision(10);
+  traccc_strip_file << "athena_id,barrel_ec,local_x,local_y,global_x,global_y,global_z\n";
 
   for(size_t i = 0; i < traccc_clusters.size(); i++){
 
@@ -297,6 +321,8 @@ std::map<int,int> TrackingHitInputTool::convertClusters(const EventContext& even
     int colMax = 0;
     int rowMin = 0;
     int rowMax = 0;
+
+
 
     if (meas.meas_dim == 2u) {
 
@@ -436,9 +462,10 @@ std::map<int,int> TrackingHitInputTool::convertClusters(const EventContext& even
       const double stripLength( std::abs(ends.first.xEta() - ends.second.xEta()) );
 
       double const phiWidth = static_cast<double>(rowMax - rowMin) / 2;
+      double shift =  m_lorentzAngleTool->getLorentzShift(Strip_ModuleHash, eventContext);
 
       InDet::SiWidth siWidth(Amg::Vector2D(phiWidth,1), Amg::Vector2D(width,stripLength) );
-      Amg::Vector2D localPos(centre.xPhi(),  centre.xEta());
+      Amg::Vector2D localPos(centre.xPhi() + shift,  centre.xEta());
       if(printClusterInfo){ATH_MSG_DEBUG("local pos of this cluster: " << localPos.x() << "," << localPos.y());}
 
       Amg::Vector3D globalPos = pDE->globalPosition(localPos);
@@ -470,9 +497,17 @@ std::map<int,int> TrackingHitInputTool::convertClusters(const EventContext& even
       xaod_scl->globalPosition() = globalPosition;
       xaod_scl->setChannelsInPhi(siWidth.colRow()[0]);
 
+      traccc_strip_file << athena_ID << ","
+        << m_stripID->barrel_ec(athena_ID) << ","
+        << localPos.x() << ","
+        << localPos.y() << ","
+        << globalPos[0] << ","
+        << globalPos[1] << ","
+        << globalPos[2] << "\n";
     }
 
   }
+  traccc_strip_file.close();
 
   ATH_MSG_INFO("xAOD::PixelClusterContainer with size: " << PixelContainerFromTracccClusters->size());
   ATH_MSG_INFO("xAOD::StripClusterContainer with size: " << StripContainerFromTracccClusters->size());

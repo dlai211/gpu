@@ -182,7 +182,6 @@ private:
     uint64_t m_fitted_tracks_gpu = 0;
     uint64_t m_ambiguity_free_tracks_cpu = 0;
     uint64_t m_ambiguity_free_tracks_gpu = 0;
-    uint64_t m_output_tracks = 0;
 
     std::unique_ptr<typename TRAIT::clusterization_algorithm_type> m_clusterization_alg_gpu;
     std::unique_ptr<typename TRAIT::measurement_sorting_algorithm_type> m_meas_sort_alg_gpu;
@@ -292,7 +291,8 @@ template<typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::initialize()
     m_det_descr = std::make_unique<traccc::silicon_detector_description::host>(*m_host_mr);
     traccc::io::read_detector_description(*m_det_descr,
         m_filesDir+"ITk_DetectorBuilder_geometry.json",
-        m_filesDir+"ITk_digitization_config_with_strips.json",
+        // m_filesDir+"ITk_digitization_config_with_strips.json",
+        "/eos/user/j/jlai/athena-custom-acts/ITk_digitization_config_with_strips.json",
         traccc::data_format::json);
 
     ATH_MSG_DEBUG("Setting up configs");
@@ -309,7 +309,7 @@ template<typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::initialize()
     // m_seedfinder.impactMax = 2.f * unit<float>::mm;
     // m_seedfinder.sigmaScattering = 100.0f;
     // m_seedfinder.maxPtScattering = 10.f * unit<float>::GeV;
-    // m_seedfinder.maxSeedsPerSpM = 1;
+    // m_seedfinder.maxSeedsPerSpM = 3;
     // m_seedfinder.radLengthPerSeed = 0.05f;
 
     m_finding_cfg.max_num_branches_per_seed = 3;
@@ -332,11 +332,11 @@ template<typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::initialize()
     m_finding_cfg.propagation.stepping.do_covariance_transport = true;
     m_finding_cfg.propagation.navigation.overstep_tolerance = -300.f * unit<float>::um;
 
-    m_fitting_cfg.propagation.navigation.min_mask_tolerance = 1e-5f * unit<float>::mm;
-    m_fitting_cfg.propagation.navigation.max_mask_tolerance = 3.f * unit<float>::mm;
-    m_fitting_cfg.propagation.navigation.overstep_tolerance = -300.f * unit<float>::um;
-    m_fitting_cfg.propagation.navigation.search_window[0] = 0u;
-    m_fitting_cfg.propagation.navigation.search_window[1] = 0u;
+    // m_fitting_cfg.propagation.navigation.min_mask_tolerance = 1e-5f * unit<float>::mm;
+    // m_fitting_cfg.propagation.navigation.max_mask_tolerance = 3.f * unit<float>::mm;
+    // m_fitting_cfg.propagation.navigation.overstep_tolerance = -300.f * unit<float>::um;
+    // m_fitting_cfg.propagation.navigation.search_window[0] = 0u;
+    // m_fitting_cfg.propagation.navigation.search_window[1] = 0u;
 
     m_logger = Acts::getDefaultLogger("EFTrackingGPU", Acts::Logging::INFO);
 
@@ -444,24 +444,21 @@ template<typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::doRecoFromClusters(
 template <typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::doRecoFromHits(
     const EventContext& evtcontext)
 {
-    // ATH_MSG_INFO("Reconstructing tracks from hits");
+    ATH_MSG_INFO("Reconstructing tracks from hits");
     m_chrono->chronoStart("track reconstruction: RDO to Acts tracks");
 
     // Instantiate host containers/collections
     traccc::edm::silicon_cell_collection::host cells_host_buffer{*m_host_mr};
 
-    // ATH_MSG_INFO("reading cells");
+    ATH_MSG_INFO("reading cells");
     m_chrono->chronoStart("1 read cells");
     ATH_CHECK(read_cells(cells_host_buffer, evtcontext));
     m_chrono->chronoStop("1 read cells");
 
     m_cells += cells_host_buffer.size();
 
-    // ATH_MSG_INFO("host to gpu data transfer: " << cells_host_buffer.size() << " bytes");
-
-    // stops in clustersToTracks
+    ATH_MSG_INFO("host to gpu data transfer: " << cells_host_buffer.size() << " bytes");
     m_chrono->chronoStart("track reconstruction: host memory to host memory");
-
     m_chrono->chronoStart("2 host to gpu data transfer");
     traccc::edm::silicon_cell_collection::buffer cells_gpu_buffer(
         cells_host_buffer.size(), m_mr->main);
@@ -472,10 +469,7 @@ template <typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::doRecoFromHits(
     }
     m_chrono->chronoStop("2 host to gpu data transfer");
 
-    // ATH_MSG_DEBUG("clusterization #cells: " << m_cells);
-
-    // stops in clustersToTracks
-    m_chrono->chronoStart("track reconstruction: gpu work");
+    ATH_MSG_DEBUG("clusterization #cells: " << m_cells);
 
     m_chrono->chronoStart("3 gpu clusterization");
     traccc::measurement_collection_types::buffer measurements_gpu_buffer =
@@ -489,7 +483,7 @@ template <typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::doRecoFromHits(
 
     m_chrono->chronoStop("track reconstruction: RDO to Acts tracks");
 
-    // ATH_MSG_INFO("Reconstruction done");
+    ATH_MSG_INFO("Reconstruction done");
     return StatusCode::SUCCESS;
 }
 
@@ -549,15 +543,9 @@ template<typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::clustersToTracks(
     // if there are no hits, then no tracking can be done
     // we do not pass empty containers to traccc, but still have to create empty Athena containers
     if((m_async_copy->get_size(measurements_gpu_buffer)) == 0){
-        // starts in calling function
-        m_chrono->chronoStop("track reconstruction: gpu work");
-        // starts in calling function
-        m_chrono->chronoStop("track reconstruction: host memory to host memory");
 
         traccc::track_state_container_types::host track_candidates;
-        unsigned nb_output_tracks = 0;
-        ATH_CHECK(m_cnvTool->convertTracks(evtcontext, track_candidates,
-            cluster_map, nb_output_tracks));
+        ATH_CHECK(m_cnvTool->convertTracks(evtcontext, track_candidates, cluster_map));
 
         if(m_checkSeeds){
 
@@ -574,14 +562,14 @@ template<typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::clustersToTracks(
 
     }
 
-    // ATH_MSG_INFO("spacepoint formation");
+    ATH_MSG_INFO("spacepoint formation");
     m_chrono->chronoStart("4 gpu spacepoint formation");
     typename TRAIT::spacepoint_formation_algorithm_type::output_type spacepoints_gpu_buffer =
         (*m_spacepoint_form_alg_gpu)(m_det_view, measurements_gpu_buffer);
     m_chrono->chronoStop("4 gpu spacepoint formation");
     m_spacepoints_gpu += (*m_copy).get_size(spacepoints_gpu_buffer);
 
-    // ATH_MSG_INFO("seeding");
+    ATH_MSG_INFO("seeding");
     m_chrono->chronoStart("5 traccc seeding");
     typename TRAIT::seeding_algorithm_type::output_type seeds_gpu_buffer =
         (*m_seeding_alg_gpu)(spacepoints_gpu_buffer);
@@ -607,7 +595,7 @@ template<typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::clustersToTracks(
 
     }
 
-    // ATH_MSG_INFO("track params estimation");
+    ATH_MSG_DEBUG("track params estimation");
     m_chrono->chronoStart("6 gpu track params estimation");
     typename TRAIT::track_params_estimation_type::output_type track_params_gpu_buffer =
         (*m_track_params_estimation_gpu)(measurements_gpu_buffer,
@@ -616,7 +604,7 @@ template<typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::clustersToTracks(
     m_chrono->chronoStop("6 gpu track params estimation");
     m_params_gpu += (*m_copy).get_size(track_params_gpu_buffer);
 
-    // ATH_MSG_INFO("track finding");
+    ATH_MSG_INFO("track finding");
     m_chrono->chronoStart("7 gpu track finding");
     typename TRAIT::finding_algorithm_type::output_type track_candidates_gpu_buffer =
         (*m_finding_alg_gpu)(m_det_view, m_inhom_gpu_field, measurements_gpu_buffer,
@@ -624,7 +612,7 @@ template<typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::clustersToTracks(
     m_chrono->chronoStop("7 gpu track finding");
     m_found_tracks_gpu += (*m_copy).get_size(track_candidates_gpu_buffer);
 
-    // ATH_MSG_INFO("track fitting");
+    ATH_MSG_INFO("track fitting");
     m_chrono->chronoStart("8 gpu track fitting");
     typename TRAIT::fitting_algorithm_type::output_type track_states_gpu_buffer =
         (*m_fitting_alg_gpu)(m_det_view, m_inhom_gpu_field,
@@ -633,24 +621,17 @@ template<typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::clustersToTracks(
     // m_fitted_tracks_gpu += (*m_copy).get_size(track_states_gpu_buffer);
     m_fitted_tracks_gpu += track_states_gpu_buffer.items.size();
 
-    // starts in calling function
-    m_chrono->chronoStop("track reconstruction: gpu work");
 
-    // ATH_MSG_INFO("copying data from gpu to host");
+    ATH_MSG_INFO("copying data from gpu to host");
     m_chrono->chronoStart("9 gpu to host data transfer");
     auto track_states_gpu = (*m_copy_track_states)(track_states_gpu_buffer);
     m_chrono->chronoStop("9 gpu to host data transfer");
 
-    // starts in calling function
-    m_chrono->chronoStop("track reconstruction: host memory to host memory");
-
-    // ATH_MSG_INFO("converting traccc tracks to AOD");
+    ATH_MSG_INFO("converting traccc tracks to AOD");
     m_chrono->chronoStart("10 traccc tracks conversion to Acts tracks");
-    unsigned nb_output_tracks = 0;
-    ATH_CHECK(m_cnvTool->convertTracks(evtcontext, track_states_gpu,
-        cluster_map, nb_output_tracks));
-    m_output_tracks += nb_output_tracks;
+    ATH_CHECK(m_cnvTool->convertTracks(evtcontext, track_states_gpu, cluster_map));
     m_chrono->chronoStop("10 traccc tracks conversion to Acts tracks");
+    m_chrono->chronoStop("track reconstruction: host memory to host memory");
 
     return StatusCode::SUCCESS;
 }
@@ -930,9 +911,8 @@ template <typename TRAIT> StatusCode TrackingRecoTool<TRAIT>::finalize()
     ATH_MSG_INFO("- found (gpu)    " << m_found_tracks_gpu << " tracks");
     // ATH_MSG_INFO("- fitted (cpu)   " << m_fitted_tracks_cpu << " tracks");
     ATH_MSG_INFO("- fitted (gpu)   " << m_fitted_tracks_gpu << " tracks");
-    ATH_MSG_INFO("- output (gpu)   " << m_output_tracks << " tracks");
     // ATH_MSG_INFO("- resolved (cpu) " << m_ambiguity_free_tracks_cpu << " tracks");
-    // ATH_MSG_INFO("- resolved (gpu) " << m_ambiguity_free_tracks_gpu << " tracks");
+    ATH_MSG_INFO("- resolved (gpu) " << m_ambiguity_free_tracks_gpu << " tracks");
 
     return StatusCode::SUCCESS;
 }

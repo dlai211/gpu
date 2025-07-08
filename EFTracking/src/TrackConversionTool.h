@@ -46,9 +46,7 @@ class TrackConversionTool : public extends<AthAlgTool, ITrackConversionTool> {
         StatusCode convertTracks(
             EventContext const & eventContext
           , traccc::track_state_container_types::host const & resolved_tracks
-          , std::map<int,int> const & cluster_map
-          , unsigned & nb_output_tracks
-          ) override;
+          , std::map<int,int> const & cluster_map) override;
         StatusCode convertSeeds(
             EventContext const & eventContext
           , traccc::edm::seed_collection::host const & seed_tracks

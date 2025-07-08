@@ -85,6 +85,10 @@ StatusCode TrackingAlg::execute()
       ATH_CHECK(m_recoTool->makeTracccStandaloneData(m_n_event,clusters.first,m_output_dir));
     }
   }else if(m_doRecoFromHits){
+    ATH_MSG_INFO("Reading event cluster information");
+    m_chrono->chronoStart("traccc read clusters");
+    std::pair<std::vector<clusterInfo>,std::map<int,int>> clusters = m_hitInputTool->readClusters(context);
+    m_chrono->chronoStop("traccc read clusters");
 
     ATH_MSG_DEBUG("Passing info to traccc");
 
